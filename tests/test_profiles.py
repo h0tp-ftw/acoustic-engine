@@ -1,16 +1,11 @@
 """Tests for YAML profile loading."""
 
-import pytest
-import tempfile
-from pathlib import Path
 
+from acoustic_alarm_engine.models import AlarmProfile, Range, Segment
 from acoustic_alarm_engine.profiles import (
     load_profile_from_yaml,
-    load_profiles_from_yaml,
     save_profile_to_yaml,
 )
-from acoustic_alarm_engine.models import AlarmProfile, Segment, Range
-
 
 SAMPLE_YAML = """
 name: "TestAlarm"

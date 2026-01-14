@@ -1,8 +1,8 @@
 """Audio mixer for noise injection during testing."""
 
-import numpy as np
 from typing import Literal
 
+import numpy as np
 
 NoiseType = Literal["white", "pink", "brown"]
 

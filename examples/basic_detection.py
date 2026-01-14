@@ -6,7 +6,8 @@ alarm patterns from microphone input.
 """
 
 import logging
-from acoustic_alarm_engine import Engine, AudioConfig
+
+from acoustic_alarm_engine import AudioConfig, Engine
 from acoustic_alarm_engine.profiles import load_profiles_from_yaml
 
 # Configure logging

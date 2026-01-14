@@ -38,8 +38,8 @@ You can also use the tester programmatically:
 
 from pathlib import Path
 
-from acoustic_alarm_engine.tester.runner import TestRunner
 from acoustic_alarm_engine.tester.display import Display
+from acoustic_alarm_engine.tester.runner import TestRunner
 
 
 def test_profile_with_audio(

@@ -2,21 +2,21 @@
 
 import time
 import wave
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Tuple
-from dataclasses import dataclass, field
 
 import numpy as np
 
-from acoustic_alarm_engine.models import AlarmProfile
-from acoustic_alarm_engine.profiles import load_profiles_from_yaml
 from acoustic_alarm_engine.dsp import SpectralMonitor
+from acoustic_alarm_engine.events import PatternMatchEvent, ToneEvent
 from acoustic_alarm_engine.filter import FrequencyFilter
 from acoustic_alarm_engine.generator import EventGenerator
-from acoustic_alarm_engine.windowed_matcher import WindowedMatcher
-from acoustic_alarm_engine.events import ToneEvent, PatternMatchEvent
-from acoustic_alarm_engine.tester.mixer import AudioMixer
+from acoustic_alarm_engine.models import AlarmProfile
+from acoustic_alarm_engine.profiles import load_profiles_from_yaml
 from acoustic_alarm_engine.tester.display import Display
+from acoustic_alarm_engine.tester.mixer import AudioMixer
+from acoustic_alarm_engine.windowed_matcher import WindowedMatcher
 
 
 @dataclass

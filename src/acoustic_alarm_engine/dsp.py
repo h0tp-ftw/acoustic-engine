@@ -1,9 +1,10 @@
 """Digital Signal Processing (DSP) layer for audio analysis."""
 
-import numpy as np
 import logging
-from typing import List
 from dataclasses import dataclass
+from typing import List
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 

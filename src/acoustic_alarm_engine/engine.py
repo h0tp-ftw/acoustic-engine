@@ -1,19 +1,20 @@
 """Main Engine class - orchestrates the detection pipeline."""
 
-import time
 import logging
 import threading
-import numpy as np
+import time
 from typing import Callable, List, Optional
 
-from acoustic_alarm_engine.models import AlarmProfile
-from acoustic_alarm_engine.listener import AudioConfig, AudioListener
+import numpy as np
+
+from acoustic_alarm_engine.config import compute_finest_resolution
 from acoustic_alarm_engine.dsp import SpectralMonitor
+from acoustic_alarm_engine.events import PatternMatchEvent
 from acoustic_alarm_engine.filter import FrequencyFilter
 from acoustic_alarm_engine.generator import EventGenerator
+from acoustic_alarm_engine.listener import AudioConfig, AudioListener
+from acoustic_alarm_engine.models import AlarmProfile
 from acoustic_alarm_engine.windowed_matcher import WindowedMatcher
-from acoustic_alarm_engine.events import PatternMatchEvent
-from acoustic_alarm_engine.config import compute_finest_resolution
 
 logger = logging.getLogger(__name__)
 

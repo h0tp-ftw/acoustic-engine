@@ -5,11 +5,10 @@ presets, and engine defaults. It provides helper functions for computing
 optimal settings based on loaded profiles.
 """
 
-from typing import List, Tuple, Optional
 from dataclasses import dataclass
+from typing import List, Tuple
 
 from acoustic_alarm_engine.models import AlarmProfile, ResolutionConfig
-
 
 # Default resolution values
 DEFAULT_MIN_TONE_DURATION = 0.1  # seconds

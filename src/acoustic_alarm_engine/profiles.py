@@ -1,11 +1,12 @@
 """YAML configuration loader for AlarmProfiles."""
 
-import yaml
 import logging
-from typing import List, Union
 from pathlib import Path
+from typing import List, Union
 
-from acoustic_alarm_engine.models import AlarmProfile, Segment, Range, ResolutionConfig
+import yaml
+
+from acoustic_alarm_engine.models import AlarmProfile, Range, ResolutionConfig, Segment
 
 logger = logging.getLogger(__name__)
 

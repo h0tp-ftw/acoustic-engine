@@ -1,7 +1,6 @@
 """Tests for core models."""
 
-import pytest
-from acoustic_alarm_engine.models import Range, Segment, AlarmProfile
+from acoustic_alarm_engine.models import AlarmProfile, Range, Segment
 
 
 class TestRange:

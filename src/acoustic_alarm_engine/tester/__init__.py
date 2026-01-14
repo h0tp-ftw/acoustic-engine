@@ -37,8 +37,8 @@ def main(
         duration: Duration for live mode in seconds
         high_resolution: Use smaller gap tolerance for fast patterns
     """
-    from acoustic_alarm_engine.tester.runner import TestRunner
     from acoustic_alarm_engine.tester.display import Display
+    from acoustic_alarm_engine.tester.runner import TestRunner
 
     # Enable debug logging if verbose mode
     if verbose:

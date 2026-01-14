@@ -9,8 +9,9 @@ useful for:
 """
 
 import numpy as np
-from acoustic_alarm_engine import Engine, AudioConfig
-from acoustic_alarm_engine.models import AlarmProfile, Segment, Range
+
+from acoustic_alarm_engine import AudioConfig, Engine
+from acoustic_alarm_engine.models import AlarmProfile, Range, Segment
 
 
 def generate_tone(frequency: float, duration: float, sample_rate: int) -> np.ndarray:

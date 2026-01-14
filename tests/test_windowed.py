@@ -6,9 +6,9 @@ import sys
 sys.path.insert(0, "src")
 
 from acoustic_alarm_engine.event_buffer import EventBuffer
-from acoustic_alarm_engine.windowed_matcher import WindowedMatcher
 from acoustic_alarm_engine.events import ToneEvent
 from acoustic_alarm_engine.profiles import load_profiles_from_yaml
+from acoustic_alarm_engine.windowed_matcher import WindowedMatcher
 
 
 def test_basic_imports():
@@ -42,7 +42,7 @@ def test_windowed_matcher():
     print(f"✓ Loaded profile: {profiles[0].name}")
 
     matcher = WindowedMatcher(profiles)
-    print(f"✓ WindowedMatcher initialized")
+    print("✓ WindowedMatcher initialized")
     print(f"  Window config: duration={matcher.configs[profiles[0].name].window_duration:.1f}s")
     print(f"  Eval frequency: {matcher.configs[profiles[0].name].eval_frequency:.2f}s")
 
@@ -55,7 +55,7 @@ def test_windowed_matcher():
     matcher.add_event(ToneEvent(timestamp=3.7, duration=0.5, frequency=3000, magnitude=0.8))
     matcher.add_event(ToneEvent(timestamp=4.4, duration=0.5, frequency=3000, magnitude=0.8))
 
-    print(f"✓ Added 6 events (2 T3 cycles)")
+    print("✓ Added 6 events (2 T3 cycles)")
 
     # Evaluate
     matches = matcher.evaluate(5.0)

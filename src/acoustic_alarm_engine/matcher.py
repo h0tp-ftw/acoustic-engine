@@ -1,10 +1,10 @@
 """State machine for matching event streams against alarm profiles."""
 
 import logging
-from typing import List, Optional, Set, Tuple
+from typing import List, Optional, Tuple
 
+from acoustic_alarm_engine.events import AudioEvent, PatternMatchEvent, ToneEvent
 from acoustic_alarm_engine.models import AlarmProfile
-from acoustic_alarm_engine.events import AudioEvent, ToneEvent, PatternMatchEvent
 
 logger = logging.getLogger(__name__)
 

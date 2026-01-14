@@ -8,11 +8,11 @@ This replaces the sequential SequenceMatcher with a more robust approach:
 
 import logging
 from dataclasses import dataclass
-from typing import List, Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
-from acoustic_alarm_engine.models import AlarmProfile
-from acoustic_alarm_engine.events import ToneEvent, PatternMatchEvent
 from acoustic_alarm_engine.event_buffer import EventBuffer
+from acoustic_alarm_engine.events import PatternMatchEvent, ToneEvent
+from acoustic_alarm_engine.models import AlarmProfile
 
 logger = logging.getLogger(__name__)
 

@@ -1,11 +1,11 @@
 """Generates discrete events from continuous DSP data."""
 
 import logging
-from typing import List
 from dataclasses import dataclass
+from typing import List
 
-from acoustic_alarm_engine.events import AudioEvent, ToneEvent
 from acoustic_alarm_engine.dsp import Peak
+from acoustic_alarm_engine.events import AudioEvent, ToneEvent
 
 logger = logging.getLogger(__name__)
 

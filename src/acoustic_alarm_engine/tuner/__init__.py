@@ -4,10 +4,10 @@ Run with: python -m acoustic_alarm_engine.tuner
 """
 
 import http.server
-import socketserver
-import webbrowser
 import os
+import socketserver
 import sys
+import webbrowser
 from pathlib import Path
 
 
@@ -31,9 +31,9 @@ def main(port: int = 8080, open_browser: bool = True):
 
     with socketserver.TCPServer(("", port), handler) as httpd:
         url = f"http://localhost:{port}"
-        print(f"🎵 Alarm Audio Tuner")
+        print("🎵 Alarm Audio Tuner")
         print(f"   Serving at: {url}")
-        print(f"   Press Ctrl+C to stop")
+        print("   Press Ctrl+C to stop")
         print()
 
         if open_browser:

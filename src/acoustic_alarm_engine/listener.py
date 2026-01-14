@@ -1,9 +1,10 @@
 """Audio listener component for capturing audio input."""
 
 import logging
-import numpy as np
-from typing import Callable, Optional
 from dataclasses import dataclass
+from typing import Callable, Optional
+
+import numpy as np
 
 try:
     import pyaudio
