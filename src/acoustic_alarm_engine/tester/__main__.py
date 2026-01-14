@@ -1,0 +1,9 @@
+"""Entry point for running the tester as a module.
+
+Usage: python -m acoustic_alarm_engine.tester
+"""
+
+from acoustic_alarm_engine.tester import cli
+
+if __name__ == "__main__":
+    cli()

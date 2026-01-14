@@ -9,9 +9,11 @@ from typing import Callable, List, Optional
 from acoustic_alarm_engine.models import AlarmProfile
 from acoustic_alarm_engine.listener import AudioConfig, AudioListener
 from acoustic_alarm_engine.dsp import SpectralMonitor
+from acoustic_alarm_engine.filter import FrequencyFilter
 from acoustic_alarm_engine.generator import EventGenerator
-from acoustic_alarm_engine.matcher import SequenceMatcher
+from acoustic_alarm_engine.windowed_matcher import WindowedMatcher
 from acoustic_alarm_engine.events import PatternMatchEvent
+from acoustic_alarm_engine.config import compute_finest_resolution
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +22,7 @@ class Engine:
     """Acoustic Alarm Detection Engine.
 
     Orchestrates the full detection pipeline:
-    Audio Input → DSP/FFT → Event Generation → Pattern Matching → Callbacks
+    Audio Input → DSP/FFT → Frequency Filter → Event Generation → Pattern Matching → Callbacks
 
     Example:
         >>> from acoustic_alarm_engine import Engine, AudioConfig
@@ -60,12 +62,19 @@ class Engine:
         self._current_time = 0.0
         self._running = False
 
+        # Calculate the finest resolution needed across all profiles
+        min_tone_dur, dropout_tol = self._compute_finest_resolution()
+
         # Pipeline components
         self._dsp = SpectralMonitor(self.audio_config.sample_rate, self.audio_config.chunk_size)
+        self._freq_filter = FrequencyFilter(self.profiles)
         self._generator = EventGenerator(
-            self.audio_config.sample_rate, self.audio_config.chunk_size
+            self.audio_config.sample_rate,
+            self.audio_config.chunk_size,
+            min_tone_duration=min_tone_dur,
+            dropout_tolerance=dropout_tol,
         )
-        self._matcher = SequenceMatcher(self.profiles)
+        self._matcher = WindowedMatcher(self.profiles)
 
         # Audio listener (created on start)
         self._listener: Optional[AudioListener] = None
@@ -92,19 +101,36 @@ class Engine:
         # DSP Analysis
         peaks = self._dsp.process(audio_chunk)
 
-        # Event Generation
-        events = self._generator.process(peaks, self._current_time)
+        # Frequency Filter - remove irrelevant frequencies early
+        filtered_peaks = self._freq_filter.filter_peaks(peaks)
 
-        # Pattern Matching
+        # Event Generation
+        events = self._generator.process(filtered_peaks, self._current_time)
+
+        # Buffer events for windowed analysis
+        for event in events:
+            self._matcher.add_event(event)
+
+        # Evaluate windows periodically
         detected = False
-        if events:
-            for event in events:
-                matches = self._matcher.process(event)
-                if matches:
-                    self._trigger_alarm(matches[0])
-                    detected = True
+        matches = self._matcher.evaluate(self._current_time)
+        for match in matches:
+            self._trigger_alarm(match)
+            detected = True
 
         return detected
+
+    def _compute_finest_resolution(self) -> tuple:
+        """Compute the finest resolution needed across all profiles.
+
+        Uses the centralized logic from config.py.
+
+        Returns:
+            (min_tone_duration, dropout_tolerance) tuple
+        """
+        min_tone, dropout = compute_finest_resolution(self.profiles)
+        logger.info(f"Engine resolution: min_tone={min_tone}s, dropout={dropout}s")
+        return min_tone, dropout
 
     def _trigger_alarm(self, match: PatternMatchEvent) -> None:
         """Handle a pattern match detection."""

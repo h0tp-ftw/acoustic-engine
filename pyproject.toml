@@ -40,6 +40,9 @@ dev = [
     "black>=23.0",
     "ruff>=0.1.0",
 ]
+audio = [
+    "pydub>=0.25.0",  # For MP3, OGG, FLAC support (requires ffmpeg)
+]
 tuner = [
     # Tuner uses built-in http.server, no extra deps needed
 ]

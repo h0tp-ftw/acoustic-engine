@@ -5,7 +5,7 @@ import logging
 from typing import List, Union
 from pathlib import Path
 
-from acoustic_alarm_engine.models import AlarmProfile, Segment, Range
+from acoustic_alarm_engine.models import AlarmProfile, Segment, Range, ResolutionConfig
 
 logger = logging.getLogger(__name__)
 
@@ -101,11 +101,23 @@ def _parse_profile(data: dict) -> AlarmProfile:
             )
         )
 
+    # Parse resolution settings if present
+    resolution = None
+    if "resolution" in data:
+        res_data = data["resolution"]
+        resolution = ResolutionConfig(
+            min_tone_duration=float(res_data.get("min_tone_duration", 0.1)),
+            dropout_tolerance=float(res_data.get("dropout_tolerance", 0.15)),
+        )
+
     return AlarmProfile(
         name=data.get("name", "UnnamedProfile"),
         segments=segments,
         confirmation_cycles=int(data.get("confirmation_cycles", 1)),
         reset_timeout=float(data.get("reset_timeout", 10.0)),
+        window_duration=data.get("window_duration"),
+        eval_frequency=float(data.get("eval_frequency", 0.5)),
+        resolution=resolution,
     )
 
 

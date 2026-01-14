@@ -1,24 +1,33 @@
 /**
- * Visualizer - Handles drawing waveforms, spectrograms, and event timelines.
- * Updated with Catppuccin Mocha color palette for cohesive aesthetics.
+ * Visualizer - Handles drawing audiogram, frequency timeline, and event timelines.
+ * Features: Interactive hover tooltips, zoom, crop selection, playhead sync.
+ * Uses Catppuccin Mocha color palette for cohesive aesthetics.
  */
 
 class Visualizer {
-    constructor(waveformCanvas, spectrogramCanvas, eventsCanvas) {
-        this.waveformCtx = waveformCanvas.getContext('2d');
-        this.spectrogramCtx = spectrogramCanvas.getContext('2d');
+    constructor(audiogramCanvas, frequencyTimelineCanvas, eventsCanvas) {
+        this.audiogramCtx = audiogramCanvas.getContext('2d');
+        this.frequencyTimelineCtx = frequencyTimelineCanvas.getContext('2d');
         this.eventsCtx = eventsCanvas.getContext('2d');
         
-        this.waveformCanvas = waveformCanvas;
-        this.spectrogramCanvas = spectrogramCanvas;
+        this.audiogramCanvas = audiogramCanvas;
+        this.frequencyTimelineCanvas = frequencyTimelineCanvas;
         this.eventsCanvas = eventsCanvas;
-        
-        // Spectrogram history
-        this.spectrogramHistory = [];
-        this.maxHistoryLength = 200;
         
         // Detected events for display
         this.detectedEvents = [];
+        
+        // Zoom state for frequency timeline
+        this.zoom = 1.0;
+        this.maxZoom = 10.0;
+        
+        // Crop selection state
+        this.cropSelection = null;  // { start: seconds, end: seconds }
+        this.isDragging = false;
+        this.dragStart = null;
+        
+        // Cached analysis data for interaction
+        this.cachedAnalysis = null;
         
         // Catppuccin Mocha color palette
         this.colors = {
@@ -26,23 +35,28 @@ class Visualizer {
             bg: '#11111b',          // crust
             bgAlt: '#181825',       // mantle
             
-            // Waveform
-            waveform: '#cba6f7',    // mauve
-            waveformGlow: 'rgba(203, 166, 247, 0.3)',
+            // Audiogram
+            audiogram: '#cba6f7',    // mauve
+            audiogramFill: 'rgba(203, 166, 247, 0.3)',
+            audiogramGlow: 'rgba(203, 166, 247, 0.4)',
             
-            // Spectrogram gradient
-            spectrogramColors: [
-                '#11111b',          // crust (low)
-                '#313244',          // surface0
-                '#585b70',          // surface2
-                '#cba6f7',          // mauve
-                '#f5c2e7'           // pink (high)
+            // Frequency timeline colors
+            freqColors: [
+                '#a6e3a1',  // green - primary peak
+                '#89b4fa',  // blue - secondary peak
+                '#fab387',  // peach - tertiary peak
             ],
+            freqLow: '#45475a',     // Low activity
+            freqHigh: '#f5c2e7',    // High activity
             
             // Events
             eventTone: '#a6e3a1',   // green
             eventToneAlt: '#94e2d5', // teal
             eventSilence: '#45475a', // surface1
+            
+            // Selection
+            selection: 'rgba(250, 179, 135, 0.3)',  // peach with alpha
+            selectionBorder: '#fab387',
             
             // Text and grid
             text: '#a6adc8',        // subtext0
@@ -60,10 +74,15 @@ class Visualizer {
         };
     }
 
-    drawWaveform(timeData, bufferLength) {
-        const ctx = this.waveformCtx;
-        const width = this.waveformCanvas.width;
-        const height = this.waveformCanvas.height;
+    /**
+     * Draw the audiogram (amplitude envelope over time)
+     * @param {Object} analysisData - Frequency analysis data containing timeline with RMS values
+     * @param {number} playheadProgress - Optional 0-1 value for playhead position
+     */
+    drawAudiogram(analysisData, playheadProgress = null) {
+        const ctx = this.audiogramCtx;
+        const width = this.audiogramCanvas.width;
+        const height = this.audiogramCanvas.height;
         
         // Clear with gradient background
         const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
@@ -72,32 +91,474 @@ class Visualizer {
         ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, width, height);
         
-        // Draw subtle grid lines
-        ctx.strokeStyle = this.colors.gridSubtle;
-        ctx.lineWidth = 1;
-        for (let i = 0; i < 5; i++) {
-            const y = (height / 4) * i;
+        if (!analysisData || !analysisData.timeline || analysisData.timeline.length === 0) {
+            ctx.fillStyle = this.colors.text;
+            ctx.font = '500 11px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Record or upload audio to see audiogram', width / 2, height / 2);
+            return;
+        }
+        
+        const { timeline, totalDuration } = analysisData;
+        const pixelsPerSecond = width / totalDuration;
+        
+        // Find max RMS for normalization
+        const maxRms = Math.max(...timeline.map(f => f.rms), 0.01);
+        
+        // Draw selection region if exists
+        if (this.cropSelection) {
+            const selStart = this.cropSelection.start * pixelsPerSecond;
+            const selEnd = this.cropSelection.end * pixelsPerSecond;
+            
+            ctx.fillStyle = this.colors.selection;
+            ctx.fillRect(selStart, 0, selEnd - selStart, height);
+            
+            ctx.strokeStyle = this.colors.selectionBorder;
+            ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(width, y);
+            ctx.moveTo(selStart, 0);
+            ctx.lineTo(selStart, height);
+            ctx.moveTo(selEnd, 0);
+            ctx.lineTo(selEnd, height);
             ctx.stroke();
         }
         
-        // Draw center line (brighter)
+        // Draw audiogram waveform
+        ctx.beginPath();
+        ctx.moveTo(0, height / 2);
+        
+        for (const frame of timeline) {
+            const x = frame.time * pixelsPerSecond;
+            const amplitude = (frame.rms / maxRms) * (height / 2 - 4);
+            
+            // Draw both positive and negative for waveform look
+            ctx.lineTo(x, height / 2 - amplitude);
+        }
+        
+        // Complete the path going back
+        for (let i = timeline.length - 1; i >= 0; i--) {
+            const frame = timeline[i];
+            const x = frame.time * pixelsPerSecond;
+            const amplitude = (frame.rms / maxRms) * (height / 2 - 4);
+            ctx.lineTo(x, height / 2 + amplitude);
+        }
+        
+        ctx.closePath();
+        ctx.fillStyle = this.colors.audiogramFill;
+        ctx.fill();
+        
+        // Draw center line with glow
+        ctx.strokeStyle = this.colors.audiogram;
+        ctx.lineWidth = 1.5;
+        ctx.shadowColor = this.colors.audiogramGlow;
+        ctx.shadowBlur = 6;
+        
+        ctx.beginPath();
+        for (let i = 0; i < timeline.length; i++) {
+            const frame = timeline[i];
+            const x = frame.time * pixelsPerSecond;
+            const amplitude = (frame.rms / maxRms) * (height / 2 - 4);
+            
+            if (i === 0) {
+                ctx.moveTo(x, height / 2 - amplitude);
+            } else {
+                ctx.lineTo(x, height / 2 - amplitude);
+            }
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        
+        // Draw time markers
+        ctx.fillStyle = this.colors.text;
+        ctx.font = '500 9px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        
+        const interval = this._getNiceInterval(totalDuration);
+        for (let t = 0; t <= totalDuration; t += interval) {
+            const x = t * pixelsPerSecond;
+            const label = t.toFixed(1) + 's';
+            ctx.fillText(label, x, height - 4);
+        }
+        
+        // Draw playhead if provided
+        if (playheadProgress !== null && playheadProgress >= 0 && playheadProgress <= 1) {
+            const playheadX = playheadProgress * width;
+            
+            ctx.shadowColor = 'rgba(243, 139, 168, 0.8)';
+            ctx.shadowBlur = 8;
+            ctx.strokeStyle = this.colors.red;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(playheadX, 0);
+            ctx.lineTo(playheadX, height);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    /**
+     * Draw the frequency timeline - shows peak frequencies over time
+     * Much more human-readable than a spectrogram
+     * @param {Object} analysisData - Frequency analysis data from AudioEngine
+     * @param {number} playheadProgress - Optional 0-1 value for playhead position
+     */
+    drawFrequencyTimeline(analysisData, playheadProgress = null) {
+        // Cache analysis data for hover interaction
+        this.cachedAnalysis = analysisData;
+        
+        const ctx = this.frequencyTimelineCtx;
+        const baseWidth = 600;
+        const zoomedWidth = baseWidth * this.zoom;
+        const height = this.frequencyTimelineCanvas.height;
+        
+        // Resize canvas if needed for zoom
+        if (this.frequencyTimelineCanvas.width !== zoomedWidth) {
+            this.frequencyTimelineCanvas.width = zoomedWidth;
+        }
+        
+        const width = this.frequencyTimelineCanvas.width;
+        
+        // Reserve space for axes
+        const leftMargin = 55;
+        const bottomMargin = 25;
+        const topMargin = 10;
+        const plotWidth = width - leftMargin - 10;
+        const plotHeight = height - bottomMargin - topMargin;
+        
+        // Clear with gradient background
+        const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+        bgGrad.addColorStop(0, this.colors.bg);
+        bgGrad.addColorStop(1, this.colors.bgAlt);
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, width, height);
+        
+        if (!analysisData || !analysisData.timeline || analysisData.timeline.length === 0) {
+            ctx.fillStyle = this.colors.text;
+            ctx.font = '500 12px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Record or upload audio to see frequency timeline', width / 2, height / 2);
+            return;
+        }
+        
+        const { timeline, totalDuration } = analysisData;
+        
+        // Determine frequency range (focus on 100Hz - 5000Hz for alarms)
+        const minFreq = 100;
+        const maxFreq = 5000;
+        const freqRange = maxFreq - minFreq;
+        
+        // Draw frequency axis (Y)
+        ctx.fillStyle = this.colors.text;
+        ctx.font = '500 9px Inter, sans-serif';
+        ctx.textAlign = 'right';
+        
+        const freqTicks = [100, 500, 1000, 2000, 3000, 4000, 5000];
+        for (const freq of freqTicks) {
+            const y = topMargin + plotHeight - ((freq - minFreq) / freqRange) * plotHeight;
+            
+            // Grid line
+            ctx.strokeStyle = this.colors.gridSubtle;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(leftMargin, y);
+            ctx.lineTo(width - 10, y);
+            ctx.stroke();
+            
+            // Label
+            ctx.fillStyle = this.colors.text;
+            const label = freq >= 1000 ? `${(freq / 1000).toFixed(1)}kHz` : `${freq}Hz`;
+            ctx.fillText(label, leftMargin - 8, y + 3);
+        }
+        
+        // Draw time axis (X)
+        this.drawTimeAxisForTimeline(ctx, leftMargin, plotWidth, height, bottomMargin, totalDuration);
+        
+        // Draw peak frequencies as points/bars
+        const pixelsPerSecond = plotWidth / totalDuration;
+        
+        // Draw bars for each frame showing peak frequency
+        for (const frame of timeline) {
+            const x = leftMargin + frame.time * pixelsPerSecond;
+            const barWidth = Math.max(frame.duration * pixelsPerSecond, 2);
+            
+            // Skip if RMS is too low (silence)
+            if (frame.rms < 0.02) continue;
+            
+            // Draw each peak frequency as a bar
+            for (let i = 0; i < Math.min(frame.peakFrequencies.length, 3); i++) {
+                const freq = frame.peakFrequencies[i];
+                const amplitude = frame.peakAmplitudes[i];
+                
+                if (freq < minFreq || freq > maxFreq) continue;
+                
+                const y = topMargin + plotHeight - ((freq - minFreq) / freqRange) * plotHeight;
+                
+                // Size based on amplitude (primary peak is larger)
+                const dotSize = i === 0 ? 6 : (i === 1 ? 4 : 3);
+                const alpha = Math.min(amplitude * 50, 1);
+                
+                // Color based on rank
+                const baseColor = this.colors.freqColors[i];
+                ctx.fillStyle = baseColor;
+                ctx.globalAlpha = Math.max(0.3, alpha);
+                
+                // Draw as horizontal bar
+                this.roundRect(ctx, x, y - dotSize / 2, barWidth, dotSize, 2);
+                ctx.fill();
+            }
+        }
+        
+        ctx.globalAlpha = 1;
+        
+        // Draw legend
+        this.drawFrequencyLegend(ctx, width - 120, topMargin + 5);
+        
+        // Draw playhead if provided
+        if (playheadProgress !== null && playheadProgress >= 0 && playheadProgress <= 1) {
+            const playheadX = leftMargin + playheadProgress * plotWidth;
+            
+            ctx.shadowColor = 'rgba(243, 139, 168, 0.8)';
+            ctx.shadowBlur = 12;
+            ctx.strokeStyle = this.colors.red;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(playheadX, topMargin);
+            ctx.lineTo(playheadX, height - bottomMargin);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    /**
+     * Get frequency info at a specific canvas position (for hover tooltip)
+     * @param {number} canvasX - X position on canvas
+     * @param {number} canvasY - Y position on canvas
+     * @returns {Object|null} Frequency info or null if no data
+     */
+    getFrequencyAtPosition(canvasX, canvasY) {
+        if (!this.cachedAnalysis) return null;
+        
+        const { timeline, totalDuration } = this.cachedAnalysis;
+        const width = this.frequencyTimelineCanvas.width;
+        const height = this.frequencyTimelineCanvas.height;
+        
+        const leftMargin = 55;
+        const bottomMargin = 25;
+        const topMargin = 10;
+        const plotWidth = width - leftMargin - 10;
+        const plotHeight = height - bottomMargin - topMargin;
+        
+        // Check if within plot area
+        if (canvasX < leftMargin || canvasX > width - 10 || 
+            canvasY < topMargin || canvasY > height - bottomMargin) {
+            return null;
+        }
+        
+        const pixelsPerSecond = plotWidth / totalDuration;
+        const time = (canvasX - leftMargin) / pixelsPerSecond;
+        
+        // Find closest frame
+        const frame = timeline.find(f => time >= f.time && time < f.time + f.duration);
+        if (!frame) return null;
+        
+        // Calculate frequency from Y position
+        const minFreq = 100;
+        const maxFreq = 5000;
+        const freqRange = maxFreq - minFreq;
+        const relY = (canvasY - topMargin) / plotHeight;
+        const frequency = maxFreq - relY * freqRange;
+        
+        return {
+            time: frame.time,
+            peakFrequencies: frame.peakFrequencies,
+            peakAmplitudes: frame.peakAmplitudes,
+            rms: frame.rms,
+            cursorFrequency: Math.round(frequency)
+        };
+    }
+
+    /**
+     * Convert canvas X position to time (for audiogram crop selection)
+     * @param {number} canvasX - X position on canvas
+     * @returns {number} Time in seconds
+     */
+    canvasXToTime(canvasX) {
+        if (!this.cachedAnalysis) return 0;
+        const { totalDuration } = this.cachedAnalysis;
+        const width = this.audiogramCanvas.width;
+        return Math.max(0, Math.min(totalDuration, (canvasX / width) * totalDuration));
+    }
+
+    /**
+     * Set crop selection region
+     * @param {number} startTime - Start time in seconds
+     * @param {number} endTime - End time in seconds
+     */
+    setCropSelection(startTime, endTime) {
+        if (startTime > endTime) {
+            [startTime, endTime] = [endTime, startTime];
+        }
+        this.cropSelection = { start: startTime, end: endTime };
+    }
+
+    /**
+     * Clear crop selection
+     */
+    clearCropSelection() {
+        this.cropSelection = null;
+    }
+
+    /**
+     * Get current crop selection
+     * @returns {Object|null} Crop selection or null
+     */
+    getCropSelection() {
+        return this.cropSelection;
+    }
+
+    /**
+     * Set zoom level
+     * @param {number} level - Zoom level (1.0 = 100%)
+     */
+    setZoom(level) {
+        this.zoom = Math.max(1.0, Math.min(this.maxZoom, level));
+    }
+
+    /**
+     * Get current zoom level
+     * @returns {number} Current zoom level
+     */
+    getZoom() {
+        return this.zoom;
+    }
+
+    /**
+     * Draw a simple legend for the frequency timeline
+     */
+    drawFrequencyLegend(ctx, x, y) {
+        const labels = ['1st Peak', '2nd Peak', '3rd Peak'];
+        
+        ctx.font = '500 8px Inter, sans-serif';
+        ctx.textAlign = 'left';
+        
+        for (let i = 0; i < 3; i++) {
+            const dotY = y + i * 14;
+            
+            // Color dot
+            ctx.fillStyle = this.colors.freqColors[i];
+            ctx.beginPath();
+            ctx.arc(x + 4, dotY, 4, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Label
+            ctx.fillStyle = this.colors.text;
+            ctx.fillText(labels[i], x + 14, dotY + 3);
+        }
+    }
+
+    /**
+     * Draw time axis for frequency timeline
+     */
+    drawTimeAxisForTimeline(ctx, leftMargin, plotWidth, height, bottomMargin, duration) {
+        const axisY = height - bottomMargin + 2;
+        
+        // Axis line
         ctx.strokeStyle = this.colors.grid;
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(0, height / 2);
-        ctx.lineTo(width, height / 2);
+        ctx.moveTo(leftMargin, axisY);
+        ctx.lineTo(leftMargin + plotWidth, axisY);
         ctx.stroke();
         
-        // Draw waveform with glow effect
-        ctx.shadowColor = this.colors.waveformGlow;
-        ctx.shadowBlur = 12;
-        ctx.strokeStyle = this.colors.waveform;
-        ctx.lineWidth = 2;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
+        // Calculate nice tick intervals
+        const interval = this._getNiceInterval(duration);
+        
+        ctx.fillStyle = this.colors.text;
+        ctx.font = '500 9px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        
+        const pixelsPerSecond = plotWidth / duration;
+        
+        for (let t = 0; t <= duration; t += interval) {
+            const x = leftMargin + t * pixelsPerSecond;
+            
+            // Tick mark
+            ctx.strokeStyle = this.colors.grid;
+            ctx.beginPath();
+            ctx.moveTo(x, axisY);
+            ctx.lineTo(x, axisY + 4);
+            ctx.stroke();
+            
+            // Time label
+            const label = t < 1 ? `${(t * 1000).toFixed(0)}ms` : `${t.toFixed(1)}s`;
+            ctx.fillText(label, x, height - 4);
+        }
+    }
+
+    /**
+     * Get a nice interval for time ticks
+     */
+    _getNiceInterval(duration) {
+        const targetTicks = 8;
+        const rawInterval = duration / targetTicks;
+        const niceIntervals = [0.1, 0.2, 0.25, 0.5, 1, 2, 5, 10];
+        return niceIntervals.find(i => i >= rawInterval) || rawInterval;
+    }
+
+    /**
+     * Live update of frequency timeline during playback
+     */
+    drawLiveFrequency(freqData, bufferLength) {
+        // For live display, just draw current frequency distribution
+        const ctx = this.frequencyTimelineCtx;
+        const width = this.frequencyTimelineCanvas.width;
+        const height = this.frequencyTimelineCanvas.height;
+        
+        // Clear
+        const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+        bgGrad.addColorStop(0, this.colors.bg);
+        bgGrad.addColorStop(1, this.colors.bgAlt);
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, width, height);
+        
+        // Draw "LIVE" indicator
+        ctx.fillStyle = this.colors.red;
+        ctx.font = '600 10px Inter, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('● LIVE', 10, 18);
+        
+        ctx.fillStyle = this.colors.text;
+        ctx.font = '500 11px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Frequency analysis will appear after recording', width / 2, height / 2);
+    }
+
+    /**
+     * Live audiogram during recording
+     */
+    drawLiveAudiogram(timeData, bufferLength) {
+        const ctx = this.audiogramCtx;
+        const width = this.audiogramCanvas.width;
+        const height = this.audiogramCanvas.height;
+        
+        // Clear with gradient background
+        const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+        bgGrad.addColorStop(0, this.colors.bg);
+        bgGrad.addColorStop(1, this.colors.bgAlt);
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, width, height);
+        
+        // Draw "LIVE" indicator
+        ctx.fillStyle = this.colors.red;
+        ctx.font = '600 10px Inter, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('● RECORDING', 10, 18);
+        
+        // Draw live waveform
+        ctx.strokeStyle = this.colors.audiogram;
+        ctx.lineWidth = 1.5;
+        ctx.shadowColor = this.colors.audiogramGlow;
+        ctx.shadowBlur = 6;
         ctx.beginPath();
         
         const sliceWidth = width / bufferLength;
@@ -117,76 +578,6 @@ class Visualizer {
         
         ctx.stroke();
         ctx.shadowBlur = 0;
-    }
-
-    drawSpectrogram(freqData, bufferLength) {
-        const ctx = this.spectrogramCtx;
-        const width = this.spectrogramCanvas.width;
-        const height = this.spectrogramCanvas.height;
-        
-        // Add current frame to history
-        this.spectrogramHistory.push(new Uint8Array(freqData));
-        if (this.spectrogramHistory.length > this.maxHistoryLength) {
-            this.spectrogramHistory.shift();
-        }
-        
-        // Clear canvas
-        ctx.fillStyle = this.colors.bg;
-        ctx.fillRect(0, 0, width, height);
-        
-        const colWidth = width / this.maxHistoryLength;
-        const rowHeight = height / 128; // Use lower half of frequency bins
-        
-        for (let col = 0; col < this.spectrogramHistory.length; col++) {
-            const frame = this.spectrogramHistory[col];
-            
-            for (let row = 0; row < 128; row++) {
-                const value = frame[row];
-                const intensity = value / 255;
-                
-                // Catppuccin-inspired gradient: crust -> surface -> mauve -> pink
-                let r, g, b;
-                if (intensity < 0.25) {
-                    // crust to surface0
-                    const t = intensity / 0.25;
-                    r = Math.floor(17 + (49 - 17) * t);
-                    g = Math.floor(17 + (50 - 17) * t);
-                    b = Math.floor(27 + (68 - 27) * t);
-                } else if (intensity < 0.5) {
-                    // surface0 to surface2
-                    const t = (intensity - 0.25) / 0.25;
-                    r = Math.floor(49 + (88 - 49) * t);
-                    g = Math.floor(50 + (91 - 50) * t);
-                    b = Math.floor(68 + (112 - 68) * t);
-                } else if (intensity < 0.75) {
-                    // surface2 to mauve
-                    const t = (intensity - 0.5) / 0.25;
-                    r = Math.floor(88 + (203 - 88) * t);
-                    g = Math.floor(91 + (166 - 91) * t);
-                    b = Math.floor(112 + (247 - 112) * t);
-                } else {
-                    // mauve to pink
-                    const t = (intensity - 0.75) / 0.25;
-                    r = Math.floor(203 + (245 - 203) * t);
-                    g = Math.floor(166 + (194 - 166) * t);
-                    b = Math.floor(247 + (231 - 247) * t);
-                }
-                
-                ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-                ctx.fillRect(
-                    col * colWidth,
-                    height - (row + 1) * rowHeight,
-                    colWidth + 1,
-                    rowHeight + 1
-                );
-            }
-        }
-        
-        // Draw frequency labels with better styling
-        ctx.fillStyle = this.colors.text;
-        ctx.font = '500 10px Inter, sans-serif';
-        ctx.fillText('0Hz', 8, height - 8);
-        ctx.fillText('10kHz', 8, 18);
     }
 
     drawEvents(events, duration) {
@@ -262,10 +653,7 @@ class Visualizer {
         ctx.stroke();
         
         // Calculate nice tick intervals
-        const targetTicks = 8;
-        const rawInterval = duration / targetTicks;
-        const niceIntervals = [0.1, 0.2, 0.25, 0.5, 1, 2, 5, 10];
-        const interval = niceIntervals.find(i => i >= rawInterval) || rawInterval;
+        const interval = this._getNiceInterval(duration);
         
         ctx.fillStyle = this.colors.text;
         ctx.font = '500 9px Inter, sans-serif';
@@ -291,11 +679,13 @@ class Visualizer {
 
     /**
      * Draw a visual representation of segments from the ruleset.
+     * Enhanced with event timeline overlay for sync visualization.
      * @param {Array} segments - Array of segment objects
      * @param {number} cycles - Number of times to repeat the pattern
      * @param {number} playheadProgress - Optional 0-1 value for playhead position
+     * @param {Array} eventTimeline - Optional array of generated events for sync
      */
-    drawSegmentPreview(segments, cycles = 1, playheadProgress = null) {
+    drawSegmentPreview(segments, cycles = 1, playheadProgress = null, eventTimeline = null) {
         const ctx = this.eventsCtx;
         const width = this.eventsCanvas.width;
         const height = this.eventsCanvas.height;
@@ -449,10 +839,15 @@ class Visualizer {
     }
 
     clear() {
-        this.spectrogramHistory = [];
         this.detectedEvents = [];
+        this.cropSelection = null;
+        this.cachedAnalysis = null;
+        this.zoom = 1.0;
         
-        [this.waveformCanvas, this.spectrogramCanvas, this.eventsCanvas].forEach(canvas => {
+        // Reset canvas width
+        this.frequencyTimelineCanvas.width = 600;
+        
+        [this.audiogramCanvas, this.frequencyTimelineCanvas, this.eventsCanvas].forEach(canvas => {
             const ctx = canvas.getContext('2d');
             const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
             bgGrad.addColorStop(0, this.colors.bg);

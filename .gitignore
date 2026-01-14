@@ -1,2 +1,62 @@
+# Byte-compiled / optimized files
 *.pyc
-__pycache__
+*.pyo
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+.eggs/
+wheels/
+pip-wheel-metadata/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Type checking
+.mypy_cache/
+.pytype/
+
+# Logs and temp files
+*.log
+*.txt
+!requirements.txt
+
+# Audio files (keep samples in examples/)
+*.wav
+*.mp3
+*.ogg
+*.flac
+!examples/*.wav
+!examples/*.mp3
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local development
+.env.local
+*.local
