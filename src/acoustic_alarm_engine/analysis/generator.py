@@ -18,6 +18,8 @@ class ActiveTone:
     frequency: float
     max_magnitude: float
     last_seen_time: float
+    last_strong_time: float  # Last time the signal was above 50% of max
+    last_magnitude: float  # Last chunk's magnitude for dip detection
     samples_count: int
 
 
@@ -89,8 +91,30 @@ class EventGenerator:
             matched = False
             for i, tone in enumerate(self.active_tones):
                 if abs(peak.frequency - tone.frequency) < self.frequency_tolerance:
-                    # Update existing tone
-                    tone.max_magnitude = max(tone.max_magnitude, peak.magnitude)
+                    # Update frequency tracking (Elite feature)
+                    tone.frequency = 0.7 * tone.frequency + 0.3 * peak.frequency
+
+                    # Upgrade: Instantaneous Dip Detection (Grandmaster feature)
+                    # If magnitude drops by >40% compared to PREVIOUS chunk,
+                    # we are likely entering the reverb tail.
+                    magnitude_ratio = peak.magnitude / (
+                        tone.last_magnitude if tone.last_magnitude > 0 else 1.0
+                    )
+
+                    if magnitude_ratio < 0.6:
+                        # Significant dip - This is likely the end of the beep and start of reverb.
+                        # We force a disconnect here so the beep duration isn't stretched.
+                        matched = False
+                        break
+
+                    if peak.magnitude > tone.max_magnitude * 0.5:
+                        # Signal is still strong and consistent
+                        tone.last_strong_time = timestamp
+
+                    if peak.magnitude > tone.max_magnitude:
+                        tone.max_magnitude = peak.magnitude
+
+                    tone.last_magnitude = peak.magnitude  # Track for NEXT dip check
                     tone.last_seen_time = timestamp
                     tone.samples_count += 1
                     current_active_indices.add(i)
@@ -104,6 +128,8 @@ class EventGenerator:
                     frequency=peak.frequency,
                     max_magnitude=peak.magnitude,
                     last_seen_time=timestamp,
+                    last_strong_time=timestamp,
+                    last_magnitude=peak.magnitude,
                     samples_count=1,
                 )
                 self.active_tones.append(new_tone)
@@ -120,8 +146,12 @@ class EventGenerator:
                 time_since_seen = timestamp - tone.last_seen_time
 
                 if time_since_seen > self.dropout_tolerance:
-                    # Tone ended
-                    duration = tone.samples_count * self.chunk_duration
+                    # Tone ended - Use 'last_strong_time' for precision duration (Elite feature)
+                    # This cuts off the reverb tail and restores the true pattern rhythm.
+                    duration = (tone.last_strong_time - tone.start_time) + self.chunk_duration
+
+                    # Safety check: ensure duration is at least one chunk
+                    duration = max(self.chunk_duration, duration)
 
                     if duration >= self.min_tone_duration:
                         event = ToneEvent(

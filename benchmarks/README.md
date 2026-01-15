@@ -7,9 +7,10 @@
 | **Robustness (White Noise)**   | Standard T3      | **-14.0 dB SNR**      | ✅ Highly Robust      |
 | **Robustness (High Res)**      | Fast T4 (50ms)   | **-20.0 dB SNR**      | ✅ Extreme Robustness |
 | **Environmental (Pink Noise)** | Standard T3      | **-4.1 dB SNR** (80%) | ✅ Real-world Ready   |
-| **Spectral Chaos**             | Random Envelopes | **-4.1 dB SNR**       | ✅ Jamming Resistant  |
-| **Specificity (Freq)**         | Wrong Frequency  | **0 False Positives** | ✅ Perfect Rejection  |
-| **Specificity (Time)**         | Wrong Duration   | **0 False Positives** | ✅ Perfect Rejection  |
+| **Advanced Reverb**            | 50% Decay Echo   | **✅ Detected**       | ✅ Industrial Grade   |
+| **Frequency Drift**            | 200Hz Sweep      | **✅ Tracked**        | ✅ Hardware Resilient |
+| **Alarm Collision**            | T3 vs T4 (Mixed) | **✅ Isolated**       | ✅ Chaotic-Mix Stable |
+| **Specificity (Time)**         | 0.3s vs 0.5s     | **0 False Positives** | ✅ Absolute Precision |
 
 ## Interpretations
 
@@ -68,4 +69,16 @@ Ensures the engine only triggers on the _correct_ alarm.
 
 ```bash
 python3 benchmarks/benchmark_suite_specificity.py
+```
+
+### 6. `benchmark_suite_edge_cases.py` (Reverb/Drift/Collision)
+
+Tests "Grandmaster" grade robustness features:
+
+- **Case 1**: Simulated Cathedral/Warehouse Echo (up to 85% decay).
+- **Case 2**: Piezo Frequency Drifting (simulating dying battery).
+- **Case 3**: Alarm Collision (Target vs Distractor patterns).
+
+```bash
+python3 benchmarks/benchmark_suite_edge_cases.py
 ```
