@@ -34,14 +34,30 @@ class WindowedMatcher:
       target frequencies, ignoring out-of-band noise.
     """
 
-    def __init__(self, profiles: List[AlarmProfile]):
+    def __init__(
+        self,
+        profiles: List[AlarmProfile],
+        max_buffer_duration: float = 60.0,
+        noise_skip_limit: int = 2,
+        duration_relax_low: float = 0.8,
+        duration_relax_high: float = 1.5,
+    ):
         """Initialize the windowed matcher.
 
         Args:
             profiles: List of AlarmProfile patterns to detect.
+            max_buffer_duration: Seconds of history to keep in memory.
+            noise_skip_limit: Max number of noise events to skip during matching.
+            duration_relax_low: Multiplier for minimum segment duration detection.
+            duration_relax_high: Multiplier for maximum segment duration detection.
         """
         self.profiles = profiles
-        self.event_buffer = EventBuffer(max_duration=60.0)  # Keep 60s of history
+        self.max_buffer_duration = max_buffer_duration
+        self.noise_skip_limit = noise_skip_limit
+        self.duration_relax_low = duration_relax_low
+        self.duration_relax_high = duration_relax_high
+
+        self.event_buffer = EventBuffer(max_duration=self.max_buffer_duration)
 
         # Per-profile configuration and state
         self.configs: Dict[str, WindowConfig] = {}
@@ -270,7 +286,7 @@ class WindowedMatcher:
 
                 matched_seg = False
                 skipped_noise = 0
-                max_skip = 2
+                max_skip = self.noise_skip_limit
 
                 while skipped_noise <= max_skip:
                     if temp_idx >= len(events):
@@ -282,10 +298,8 @@ class WindowedMatcher:
                     freq_match = tone_seg.frequency and tone_seg.frequency.contains(event.frequency)
 
                     # 2. Check Duration (flexible but not too loose)
-                    # Tightened from 0.75 to 0.8 to prevent false positives on signals that are too short.
-                    # e.g. 0.4s min * 0.8 = 0.32s threshold (rejects 0.3s)
-                    dur_min = tone_seg.duration.min * 0.8
-                    dur_max = tone_seg.duration.max * 1.5
+                    dur_min = tone_seg.duration.min * self.duration_relax_low
+                    dur_max = tone_seg.duration.max * self.duration_relax_high
                     dur_match = dur_min <= event.duration <= dur_max
 
                     if freq_match and dur_match:

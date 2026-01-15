@@ -244,6 +244,47 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for a deep dive into the implementation d
 
 ---
 
+## ⚙️ Configuration
+
+The engine is highly configurable via a single YAML file or programmatically via `GlobalConfig`.
+
+### **Universal Config Structure**
+
+```yaml
+system:
+  log_level: "INFO" # DEBUG, INFO, WARNING, ERROR
+
+audio:
+  sample_rate: 44100 # Hz
+  chunk_size: 1024 # FFT window size
+  device_index: null # Specific mic index (null for default)
+
+engine:
+  min_magnitude: 10.0 # Sensitivity (lower = more sensitive)
+
+  # Advanced Tuning
+  min_sharpness: 1.5 # Rejects wide-band noise
+  noise_floor_factor: 3.0 # Adaptive threshold multiplier
+  frequency_tolerance: 50.0 # Hz drift tolerance
+  dip_threshold: 0.6 # Instant dip disconnect (reverb rejection)
+
+profiles:
+  - include: "profiles/smoke_alarm_t3.yaml"
+```
+
+### **Advanced Parameter Reference**
+
+| Category  | Parameter            | Default | Description                                                       |
+| :-------- | :------------------- | :------ | :---------------------------------------------------------------- |
+| **DSP**   | `min_sharpness`      | `1.5`   | Ratio a peak must be above its neighbors to be considered a tone. |
+| **DSP**   | `noise_floor_factor` | `3.0`   | Multiplier for the median-based adaptive noise floor.             |
+| **Gen**   | `dip_threshold`      | `0.6`   | Detects a sudden magnitude drop to "disconnect" reverb tails.     |
+| **Gen**   | `freq_smoothing`     | `0.3`   | Alpha for EMA frequency tracking (higher = faster tracking).      |
+| **Match** | `noise_skip_limit`   | `2`     | Number of non-matching events to ignore before breaking a cycle.  |
+| **Match** | `duration_relax_low` | `0.8`   | Multiplier for the minimum duration of a segment.                 |
+
+---
+
 ## 📖 API Reference
 
 ### Engine

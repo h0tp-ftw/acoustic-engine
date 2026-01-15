@@ -10,7 +10,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import yaml
 
@@ -109,6 +109,25 @@ class EngineConfig:
         chunk_size: FFT chunk size in samples.
         min_tone_duration: Minimum tone duration to register (computed from profiles).
         dropout_tolerance: Max gap before tone considered ended (computed from profiles).
+        min_magnitude: Threshold for peak detection.
+
+        # --- Advanced DSP Settings ---
+        min_sharpness: Minimum prominence of a spectral peak (default 1.5).
+        noise_floor_factor: Multiplier for adaptive noise floor (default 3.0).
+        max_peaks: Maximum peaks to track per chunk (default 5).
+
+        # --- Advanced Generation Settings ---
+        frequency_tolerance: Hz range to consider peaks as the same tone (default 50.0).
+        freq_smoothing: Alpha for EMA frequency tracking (default 0.3).
+        dip_threshold: Ratio for instantaneous dip detection (default 0.6).
+        strong_signal_ratio: Ratio to consider signal "strong" for duration (default 0.5).
+        coalesce_ratio: Overlap ratio for merging concurrent events (default 0.5).
+
+        # --- Advanced Matching Settings ---
+        max_buffer_duration: Seconds of history to keep in memory (default 60.0).
+        noise_skip_limit: Max number of noise events to skip during matching (default 2).
+        duration_relax_low: Multiplier for minimum segment duration (default 0.8).
+        duration_relax_high: Multiplier for maximum segment duration (default 1.5).
     """
 
     sample_rate: int = 44100
@@ -116,6 +135,24 @@ class EngineConfig:
     min_tone_duration: float = DEFAULT_MIN_TONE_DURATION
     dropout_tolerance: float = DEFAULT_DROPOUT_TOLERANCE
     min_magnitude: float = 10.0  # Threshold for peak detection
+
+    # Advanced DSP
+    min_sharpness: float = 1.5
+    noise_floor_factor: float = 3.0
+    max_peaks: int = 5
+
+    # Advanced Generation
+    frequency_tolerance: float = 50.0
+    freq_smoothing: float = 0.3
+    dip_threshold: float = 0.6
+    strong_signal_ratio: float = 0.5
+    coalesce_ratio: float = 0.5
+
+    # Advanced Matching
+    max_buffer_duration: float = 60.0
+    noise_skip_limit: int = 2
+    duration_relax_low: float = 0.8
+    duration_relax_high: float = 1.5
 
     @classmethod
     def from_profiles(
@@ -303,6 +340,36 @@ class GlobalConfig:
                 engine_config.dropout_tolerance = float(engine_data["dropout_tolerance"])
             if "min_magnitude" in engine_data:
                 engine_config.min_magnitude = float(engine_data["min_magnitude"])
+
+            # Advanced DSP
+            if "min_sharpness" in engine_data:
+                engine_config.min_sharpness = float(engine_data["min_sharpness"])
+            if "noise_floor_factor" in engine_data:
+                engine_config.noise_floor_factor = float(engine_data["noise_floor_factor"])
+            if "max_peaks" in engine_data:
+                engine_config.max_peaks = int(engine_data["max_peaks"])
+
+            # Advanced Generation
+            if "frequency_tolerance" in engine_data:
+                engine_config.frequency_tolerance = float(engine_data["frequency_tolerance"])
+            if "freq_smoothing" in engine_data:
+                engine_config.freq_smoothing = float(engine_data["freq_smoothing"])
+            if "dip_threshold" in engine_data:
+                engine_config.dip_threshold = float(engine_data["dip_threshold"])
+            if "strong_signal_ratio" in engine_data:
+                engine_config.strong_signal_ratio = float(engine_data["strong_signal_ratio"])
+            if "coalesce_ratio" in engine_data:
+                engine_config.coalesce_ratio = float(engine_data["coalesce_ratio"])
+
+            # Advanced Matching
+            if "max_buffer_duration" in engine_data:
+                engine_config.max_buffer_duration = float(engine_data["max_buffer_duration"])
+            if "noise_skip_limit" in engine_data:
+                engine_config.noise_skip_limit = int(engine_data["noise_skip_limit"])
+            if "duration_relax_low" in engine_data:
+                engine_config.duration_relax_low = float(engine_data["duration_relax_low"])
+            if "duration_relax_high" in engine_data:
+                engine_config.duration_relax_high = float(engine_data["duration_relax_high"])
 
         return cls(
             system=system_config,

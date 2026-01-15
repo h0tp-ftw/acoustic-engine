@@ -13,18 +13,18 @@ from typing import Callable, List, Optional, Union
 
 import numpy as np
 
+from .analysis.generator import EventGenerator
+from .analysis.windowed_matcher import WindowedMatcher
 from .config import (
     AudioSettings,
     EngineConfig,
     GlobalConfig,
 )
-from .processing.dsp import SpectralMonitor
 from .events import PatternMatchEvent
-from .processing.filter import FrequencyFilter
-from .analysis.generator import EventGenerator
 from .input.listener import AudioListener
 from .models import AlarmProfile
-from .analysis.windowed_matcher import WindowedMatcher
+from .processing.dsp import SpectralMonitor
+from .processing.filter import FrequencyFilter
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +87,9 @@ class Engine:
             self.engine_config.sample_rate,
             self.engine_config.chunk_size,
             min_magnitude=self.engine_config.min_magnitude,
+            min_sharpness=self.engine_config.min_sharpness,
+            noise_floor_factor=self.engine_config.noise_floor_factor,
+            max_peaks=self.engine_config.max_peaks,
         )
         self._freq_filter = FrequencyFilter(self.profiles)
         self._generator = EventGenerator(
@@ -94,8 +97,19 @@ class Engine:
             self.engine_config.chunk_size,
             min_tone_duration=self.engine_config.min_tone_duration,
             dropout_tolerance=self.engine_config.dropout_tolerance,
+            frequency_tolerance=self.engine_config.frequency_tolerance,
+            freq_smoothing=self.engine_config.freq_smoothing,
+            dip_threshold=self.engine_config.dip_threshold,
+            strong_signal_ratio=self.engine_config.strong_signal_ratio,
+            coalesce_ratio=self.engine_config.coalesce_ratio,
         )
-        self._matcher = WindowedMatcher(self.profiles)
+        self._matcher = WindowedMatcher(
+            self.profiles,
+            max_buffer_duration=self.engine_config.max_buffer_duration,
+            noise_skip_limit=self.engine_config.noise_skip_limit,
+            duration_relax_low=self.engine_config.duration_relax_low,
+            duration_relax_high=self.engine_config.duration_relax_high,
+        )
 
         # Audio listener (created on start)
         self._listener: Optional[AudioListener] = None

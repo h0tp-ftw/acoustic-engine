@@ -4,8 +4,8 @@ import logging
 from dataclasses import dataclass
 from typing import List
 
-from ..processing.dsp import Peak
 from ..events import AudioEvent, ToneEvent
+from ..processing.dsp import Peak
 
 logger = logging.getLogger(__name__)
 
@@ -42,26 +42,37 @@ class EventGenerator:
         chunk_size: int,
         min_tone_duration: float = 0.1,
         dropout_tolerance: float = 0.15,
+        frequency_tolerance: float = 50.0,
+        freq_smoothing: float = 0.3,
+        dip_threshold: float = 0.6,
+        strong_signal_ratio: float = 0.5,
+        coalesce_ratio: float = 0.5,
     ):
         """Initialize the event generator.
 
         Args:
             sample_rate: Audio sample rate in Hz.
             chunk_size: Number of samples per chunk.
-            min_tone_duration: Minimum duration for a detected tone to be valid (default 0.1s).
-                               Use lower values (e.g., 0.05) for fast beep patterns.
-            dropout_tolerance: Maximum silence gap allowed within a single tone (default 0.15s).
-                               If a tone disappears for less than this time, it is considered
-                               continuous.
+            min_tone_duration: Minimum duration for a detected tone to be valid.
+            dropout_tolerance: Maximum silence gap allowed within a single tone.
+            frequency_tolerance: Hz range to consider peaks as the same tone.
+            freq_smoothing: Alpha for EMA frequency tracking.
+            dip_threshold: Ratio for instantaneous dip detection.
+            strong_signal_ratio: Ratio to consider signal "strong" for duration.
+            coalesce_ratio: Overlap ratio for merging concurrent events.
         """
         self.sample_rate = sample_rate
         self.chunk_size = chunk_size
         self.chunk_duration = chunk_size / sample_rate
 
-        # Configuration - now customizable
-        self.frequency_tolerance = 50.0  # Hz to match same tone
+        # Configuration
         self.min_tone_duration = min_tone_duration
         self.dropout_tolerance = dropout_tolerance
+        self.frequency_tolerance = frequency_tolerance
+        self.freq_smoothing = freq_smoothing
+        self.dip_threshold = dip_threshold
+        self.strong_signal_ratio = strong_signal_ratio
+        self.coalesce_ratio = coalesce_ratio
 
         # State
         self.active_tones: List[ActiveTone] = []
@@ -92,7 +103,9 @@ class EventGenerator:
             for i, tone in enumerate(self.active_tones):
                 if abs(peak.frequency - tone.frequency) < self.frequency_tolerance:
                     # Update frequency tracking (Elite feature)
-                    tone.frequency = 0.7 * tone.frequency + 0.3 * peak.frequency
+                    tone.frequency = (
+                        1.0 - self.freq_smoothing
+                    ) * tone.frequency + self.freq_smoothing * peak.frequency
 
                     # Upgrade: Instantaneous Dip Detection (Grandmaster feature)
                     # If magnitude drops by >40% compared to PREVIOUS chunk,
@@ -101,13 +114,13 @@ class EventGenerator:
                         tone.last_magnitude if tone.last_magnitude > 0 else 1.0
                     )
 
-                    if magnitude_ratio < 0.6:
+                    if magnitude_ratio < self.dip_threshold:
                         # Significant dip - This is likely the end of the beep and start of reverb.
                         # We force a disconnect here so the beep duration isn't stretched.
                         matched = False
                         break
 
-                    if peak.magnitude > tone.max_magnitude * 0.5:
+                    if peak.magnitude > tone.max_magnitude * self.strong_signal_ratio:
                         # Signal is still strong and consistent
                         tone.last_strong_time = timestamp
 
@@ -224,7 +237,7 @@ class EventGenerator:
                     )
                     min_dur = min(current_event.duration, next_event.duration)
 
-                    if overlap > 0.5 * min_dur:
+                    if overlap > self.coalesce_ratio * min_dur:
                         # Overlap detected - coalescing
                         if next_event.duration > current_event.duration:
                             current_event = next_event

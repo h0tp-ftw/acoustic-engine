@@ -25,13 +25,24 @@ class SpectralMonitor:
     that might correspond to alarm tones.
     """
 
-    def __init__(self, sample_rate: int, chunk_size: int, min_magnitude: float = 0.05):
+    def __init__(
+        self,
+        sample_rate: int,
+        chunk_size: int,
+        min_magnitude: float = 0.05,
+        min_sharpness: float = 1.5,
+        noise_floor_factor: float = 3.0,
+        max_peaks: int = 5,
+    ):
         """Initialize the spectral monitor.
 
         Args:
             sample_rate: Audio sample rate in Hz
             chunk_size: Number of samples per chunk
             min_magnitude: Minimum magnitude to consider a peak
+            min_sharpness: Peak required to be X times higher than neighbors
+            noise_floor_factor: Multiplier for adaptive noise floor threshold
+            max_peaks: Maximum number of peaks to return
         """
         self.sample_rate = sample_rate
         self.chunk_size = chunk_size
@@ -40,7 +51,9 @@ class SpectralMonitor:
 
         # Configuration
         self.min_magnitude = min_magnitude
-        self.min_sharpness = 1.5  # Peak required to be X times higher than neighbors
+        self.min_sharpness = min_sharpness
+        self.noise_floor_factor = noise_floor_factor
+        self.max_peaks = max_peaks
 
     def process(self, audio_chunk: np.ndarray) -> List[Peak]:
         """Process an audio chunk and return significant spectral peaks.
@@ -71,7 +84,7 @@ class SpectralMonitor:
         noise_floor = np.median(fft_data)
         # We require peaks to be significantly above the noise floor
         # or above the absolute minimum, whichever is higher.
-        dynamic_threshold = max(self.min_magnitude, noise_floor * 3.0)
+        dynamic_threshold = max(self.min_magnitude, noise_floor * self.noise_floor_factor)
 
         max_val = np.max(fft_data)
         if max_val < dynamic_threshold:
@@ -117,4 +130,4 @@ class SpectralMonitor:
 
         # Sort by magnitude descending, limit to top peaks
         peaks.sort(key=lambda x: x.magnitude, reverse=True)
-        return peaks[:5]
+        return peaks[: self.max_peaks]
