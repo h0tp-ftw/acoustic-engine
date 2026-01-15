@@ -20,8 +20,8 @@ from .profiles import _parse_profile, load_profiles_from_yaml
 logger = logging.getLogger(__name__)
 
 # Default resolution values
-DEFAULT_MIN_TONE_DURATION = 0.1  # seconds
-DEFAULT_DROPOUT_TOLERANCE = 0.15  # seconds
+DEFAULT_MIN_TONE_DURATION = 0.02  # seconds (20ms for high res)
+DEFAULT_DROPOUT_TOLERANCE = 0.02  # seconds (20ms for high res)
 
 # High-resolution preset values
 HIGHRES_MIN_TONE_DURATION = 0.05  # 50ms
@@ -93,7 +93,7 @@ class AudioSettings:
     """
 
     sample_rate: int = 44100
-    chunk_size: int = 4096
+    chunk_size: int = 1024  # High-res default
     device_index: Optional[int] = None
     channels: int = 1
 
@@ -112,9 +112,10 @@ class EngineConfig:
     """
 
     sample_rate: int = 44100
-    chunk_size: int = 4096
+    chunk_size: int = 1024
     min_tone_duration: float = DEFAULT_MIN_TONE_DURATION
     dropout_tolerance: float = DEFAULT_DROPOUT_TOLERANCE
+    min_magnitude: float = 10.0  # Threshold for peak detection
 
     @classmethod
     def from_profiles(
@@ -163,7 +164,7 @@ class EngineConfig:
         """
         return cls(
             sample_rate=sample_rate,
-            chunk_size=2048,
+            chunk_size=1024,
             min_tone_duration=HIGHRES_MIN_TONE_DURATION,
             dropout_tolerance=HIGHRES_DROPOUT_TOLERANCE,
         )
@@ -182,7 +183,7 @@ class EngineConfig:
         """
         return cls(
             sample_rate=sample_rate,
-            chunk_size=4096,
+            chunk_size=1024,
             min_tone_duration=DEFAULT_MIN_TONE_DURATION,
             dropout_tolerance=DEFAULT_DROPOUT_TOLERANCE,
         )

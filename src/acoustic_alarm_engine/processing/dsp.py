@@ -25,12 +25,13 @@ class SpectralMonitor:
     that might correspond to alarm tones.
     """
 
-    def __init__(self, sample_rate: int, chunk_size: int):
+    def __init__(self, sample_rate: int, chunk_size: int, min_magnitude: float = 0.05):
         """Initialize the spectral monitor.
 
         Args:
             sample_rate: Audio sample rate in Hz
             chunk_size: Number of samples per chunk
+            min_magnitude: Minimum magnitude to consider a peak
         """
         self.sample_rate = sample_rate
         self.chunk_size = chunk_size
@@ -38,7 +39,7 @@ class SpectralMonitor:
         self.window = np.hanning(chunk_size)
 
         # Configuration
-        self.min_magnitude = 0.05  # Minimum normalized magnitude to consider a peak
+        self.min_magnitude = min_magnitude
         self.min_sharpness = 1.5  # Peak required to be X times higher than neighbors
 
     def process(self, audio_chunk: np.ndarray) -> List[Peak]:

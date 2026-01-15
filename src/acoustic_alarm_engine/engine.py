@@ -83,7 +83,11 @@ class Engine:
         self._running = False
 
         # Pipeline components initialization
-        self._dsp = SpectralMonitor(self.engine_config.sample_rate, self.engine_config.chunk_size)
+        self._dsp = SpectralMonitor(
+            self.engine_config.sample_rate,
+            self.engine_config.chunk_size,
+            min_magnitude=self.engine_config.min_magnitude,
+        )
         self._freq_filter = FrequencyFilter(self.profiles)
         self._generator = EventGenerator(
             self.engine_config.sample_rate,

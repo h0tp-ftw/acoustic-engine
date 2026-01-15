@@ -128,7 +128,33 @@ if __name__ == "__main__":
     audio_path = sys.argv[2]
 
     # Run single test
-    results = test_profile_with_audio(profile_path, audio_path, verbose=True)
+    # Support optional threshold arg
+    min_magnitude = 0.05
+    high_resolution = False
+
+    if len(sys.argv) > 3:
+        try:
+            min_magnitude = float(sys.argv[3])
+            print(f"Custom threshold: {min_magnitude}")
+        except ValueError:
+            pass
+
+    if "--high-res" in sys.argv:
+        high_resolution = True
+
+    display = Display(verbose=True)
+    display.header()
+
+    runner = TestRunner(
+        profile_path=Path(profile_path),
+        verbose=True,
+        display=display,
+        min_magnitude=min_magnitude,
+        high_resolution=high_resolution,
+    )
+    runner.run_file(Path(audio_path))
+    runner.show_results()
+    results = runner.results
 
     # Run noise robustness test
     print()

@@ -42,6 +42,7 @@ class TestRunner:
         sample_rate: int = 44100,
         chunk_size: int = 4096,
         high_resolution: bool = False,
+        min_magnitude: float = 0.05,
     ):
         self.noise_level = noise_level
         self.noise_type = noise_type
@@ -67,7 +68,7 @@ class TestRunner:
         self.profiles = self._load_profiles(profile_path)
 
         # Initialize engine components
-        self.dsp = SpectralMonitor(sample_rate, chunk_size)
+        self.dsp = SpectralMonitor(sample_rate, chunk_size, min_magnitude=min_magnitude)
         self.freq_filter = FrequencyFilter(self.profiles)
         self.generator = EventGenerator(
             sample_rate,
