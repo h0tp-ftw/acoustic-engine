@@ -40,6 +40,34 @@ The Acoustic Alarm Engine is engineered for "Grandmaster" grade durability in re
 
 ---
 
+## 🧠 Comparison: DSP vs Neural Networks
+
+Why use this engine instead of an AI-based sound classifier? While Neural Networks (NN) are powerful for general soundscapes, this DSP-based engine excels in **resource-constrained** and **high-precision** environments.
+
+### **System Efficiency Comparison**
+
+| Metric               | **Acoustic Alarm Engine (DSP)** | **Neural Network (Edge AI)** |
+| -------------------- | ------------------------------- | ---------------------------- |
+| **CPU Usage**        | < 5% (Single Core)              | 25-80% (Multi-core/NPU)      |
+| **Memory Footprint** | ~50 MB                          | 200 MB - 1 GB+               |
+| **Latency**          | 23ms - 92ms                     | 200ms - 1s                   |
+| **GPU/NPU Req.**     | None (Pure CPU)                 | Recommended for real-time    |
+| **Power Draw**       | Ultra-Low (IoT Friendly)        | Medium to High               |
+
+### **Detection Philosophy**
+
+| Capability           | **Acoustic Alarm Engine**        | **Neural Networks (CNN/RNN)** |
+| -------------------- | -------------------------------- | ----------------------------- |
+| **Determinism**      | 100% (Mathematical)              | Probabilistic (Statistical)   |
+| **Data Required**    | None (Zero-shot configuration)   | Thousands of labeled samples  |
+| **Explainability**   | Clear (Matches frequency/rhythm) | "Black Box" (Weights-based)   |
+| **Noise Resilience** | Elite in high-frequency rumble   | Great at complex soundscapes  |
+| **Failing Hardware** | Trackable (via 200Hz drift)      | Often viewed as "Unknown"     |
+
+**The Verdict**: Use this engine for **specific, repetitive patterns** (alarms, beeps, machinery) where performance and reliability are critical. Use Neural Networks for **general semantic sounds** (shouting, glass breaking, dog barking) where the patterns are too irregular for mathematical modeling.
+
+---
+
 ## 🚀 Quick Start
 
 ### Installation
