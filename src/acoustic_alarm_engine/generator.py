@@ -22,10 +22,16 @@ class ActiveTone:
 
 
 class EventGenerator:
-    """Converts spectral peaks into discrete Tone/Silence events.
+    """Converts continuous spectral peaks into discrete Tone/Silence events.
 
-    Handles debouncing and tone continuity to produce clean events
-    from noisy FFT data.
+    This class acts as the bridge between the DSP layer (frequency peaks) and
+    the pattern matchers (audio events). It handles:
+    - **Debouncing**: Ignoring short transient noises.
+    - **Continuity**: Stitching together spectral peaks across multiple
+      chunks into coherent `ToneEvent`s.
+    - **Dropout Tolerance**: Allowing short gaps in a signal (due to noise
+      or interference) without breaking the tone event.
+    - **Temporal Sorting**: Ensuring events are emitted in strict chronological order.
     """
 
     def __init__(
@@ -38,11 +44,13 @@ class EventGenerator:
         """Initialize the event generator.
 
         Args:
-            sample_rate: Audio sample rate in Hz
-            chunk_size: Number of samples per chunk
-            min_tone_duration: Minimum duration to count as valid tone (default 0.1s)
-            dropout_tolerance: Max gap before tone ends (default 0.15s)
-                              Lower values = better resolution but more noise sensitivity
+            sample_rate: Audio sample rate in Hz.
+            chunk_size: Number of samples per chunk.
+            min_tone_duration: Minimum duration for a detected tone to be valid (default 0.1s).
+                               Use lower values (e.g., 0.05) for fast beep patterns.
+            dropout_tolerance: Maximum silence gap allowed within a single tone (default 0.15s).
+                               If a tone disappears for less than this time, it is considered
+                               continuous.
         """
         self.sample_rate = sample_rate
         self.chunk_size = chunk_size
@@ -61,14 +69,18 @@ class EventGenerator:
         self.pending_output: List[ToneEvent] = []
 
     def process(self, peaks: List[Peak], timestamp: float) -> List[AudioEvent]:
-        """Process peaks for a time slice and return completed events.
+        """Process spectral peaks for a time slice and return completed events.
+
+        This function should be called for every analyzed audio chunk.
 
         Args:
-            peaks: Spectral peaks from DSP layer
-            timestamp: Current time in seconds
+            peaks: List of significant spectral peaks detected by the DSP layer.
+            timestamp: The end time of the current audio chunk in seconds.
 
         Returns:
-            List of completed ToneEvents
+            A list of completed `ToneEvent` objects. Note that events are only
+            emitted *after* they have finished (and the dropout tolerance timer
+            has expired), so there is inherent latency equal to `dropout_tolerance`.
         """
         # 1. Update active tones
         current_active_indices = set()

@@ -21,7 +21,34 @@ class App {
         this.isDragging = false;
         this.dragStartX = 0;
         
+        // Undo/Redo history
+        this.history = [[]];
+        this.historyIndex = 0;
+        
+        // Segment selection
+        this.selectedSegments = new Set();
+        
+        // Questionnaire state
+        this.questionnaireAnswers = {
+            isRepeating: 'yes',
+            samePitch: 'same',
+            pitchPattern: null,
+            beepsPerCycle: null,
+            hasLongPause: 'yes'
+        };
+        
+        // A/B Comparison state
+        this.abCompareState = {
+            isPlaying: false,
+            currentTrack: null, // 'original' or 'detected'
+            detectedBuffer: null
+        };
+        
+        // Last analysis result for A/B comparison
+        this.lastAnalysisResult = null;
+        
         this.initUI();
+        this.initQuestionnaireUI();
         this.initInteractiveFeatures();
         this.addDefaultSegments();
     }
@@ -42,7 +69,7 @@ class App {
         // Actions
         document.getElementById('generateSoundBtn').addEventListener('click', () => this.generateSound());
         document.getElementById('exportConfigBtn').addEventListener('click', () => this.exportConfig());
-        document.getElementById('analyzeBtn').addEventListener('click', () => this.analyzeRecording());
+        document.getElementById('analyzeBtn').addEventListener('click', () => this.showQuestionnaire());
         
         // Frequency query
         document.getElementById('queryBtn').addEventListener('click', () => this.queryFrequency());
@@ -89,6 +116,343 @@ class App {
         document.getElementById('redoBtn').addEventListener('click', () => this.redo());
         document.getElementById('mergeBtn').addEventListener('click', () => this.mergeSelectedSegments());
         document.getElementById('splitBtn').addEventListener('click', () => this.splitSelectedSegment());
+    }
+
+    /**
+     * Initialize the questionnaire modal UI and A/B comparison controls
+     */
+    initQuestionnaireUI() {
+        const modal = document.getElementById('questionnaireModal');
+        const skipBtn = document.getElementById('skipQuestionnaireBtn');
+        const startBtn = document.getElementById('startAnalysisBtn');
+        const pitchRadios = document.querySelectorAll('input[name="samePitch"]');
+        const pitchDetailsGroup = document.getElementById('pitchDetailsGroup');
+        const beepCountInput = document.getElementById('beepCount');
+        const beepCountUnsure = document.getElementById('beepCountUnsure');
+        
+        // Show/hide pitch details based on selection
+        pitchRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                pitchDetailsGroup.style.display = e.target.value === 'different' ? 'block' : 'none';
+            });
+        });
+        
+        // Disable beep count input if "unsure" is checked
+        beepCountUnsure.addEventListener('change', (e) => {
+            beepCountInput.disabled = e.target.checked;
+            if (e.target.checked) beepCountInput.value = '';
+        });
+        
+        // Skip button - run analysis without questionnaire constraints
+        skipBtn.addEventListener('click', () => {
+            modal.style.display = 'none';
+            this.runAnalysis({});
+        });
+        
+        // Start button - collect answers and run analysis
+        startBtn.addEventListener('click', () => {
+            this.collectQuestionnaireAnswers();
+            modal.style.display = 'none';
+            this.runAnalysis(this.questionnaireAnswers);
+        });
+        
+        // Close modal on backdrop click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.style.display = 'none';
+            }
+        });
+        
+        // A/B Comparison controls (check if elements exist first)
+        const previewBtn = document.getElementById('previewDetectedBtn');
+        const abCompareBtn = document.getElementById('abCompareBtn');
+        
+        if (previewBtn) {
+            previewBtn.addEventListener('click', () => this.playDetectedPreview());
+        }
+        if (abCompareBtn) {
+            abCompareBtn.addEventListener('click', () => this.playABComparison());
+        }
+    }
+    
+    /**
+     * Collect answers from the questionnaire form
+     */
+    collectQuestionnaireAnswers() {
+        const isRepeating = document.querySelector('input[name="isRepeating"]:checked')?.value || 'unsure';
+        const samePitch = document.querySelector('input[name="samePitch"]:checked')?.value || 'unsure';
+        const hasLongPause = document.querySelector('input[name="hasLongPause"]:checked')?.value || 'unsure';
+        const pitchPattern = document.getElementById('pitchPattern')?.value || null;
+        const beepCountUnsure = document.getElementById('beepCountUnsure')?.checked;
+        const beepCountVal = document.getElementById('beepCount')?.value;
+        const beepsPerCycle = beepCountUnsure ? null : (parseInt(beepCountVal) || null);
+        
+        this.questionnaireAnswers = {
+            isRepeating,
+            samePitch,
+            pitchPattern: samePitch === 'different' ? pitchPattern : null,
+            beepsPerCycle,
+            hasLongPause
+        };
+    }
+    
+    /**
+     * Show the questionnaire modal (called when Auto-Tune is clicked)
+     */
+    showQuestionnaire() {
+        document.getElementById('questionnaireModal').style.display = 'flex';
+    }
+    
+    /**
+     * Run the analysis with optional questionnaire constraints
+     */
+    runAnalysis(constraints) {
+        // Gather options from UI
+        const silenceMode = document.getElementById('silenceMode').value;
+        const silenceThreshold = silenceMode === 'manual' 
+            ? parseFloat(document.getElementById('silenceThreshold').value) 
+            : null;
+        const patternRecognition = document.getElementById('patternRecognition').checked;
+        
+        // Build constraints from questionnaire
+        const analysisConstraints = {};
+        if (constraints.beepsPerCycle) {
+            analysisConstraints.expectedBeepCount = constraints.beepsPerCycle;
+        }
+        if (constraints.samePitch === 'same') {
+            analysisConstraints.samePitch = true;
+        }
+        if (constraints.hasLongPause === 'yes') {
+            analysisConstraints.hasInterCyclePause = true;
+        }
+        
+        const result = this.audioEngine.analyzeRecording({
+            silenceThreshold,
+            patternRecognition,
+            constraints: Object.keys(analysisConstraints).length > 0 ? analysisConstraints : undefined
+        });
+        
+        // Store for A/B comparison
+        this.lastAnalysisResult = result;
+        
+        const patternInfoDiv = document.getElementById('patternInfo');
+        const abSection = document.getElementById('abCompareSection');
+        
+        if (result.warnings && result.warnings.length > 0) {
+            console.warn('Analysis warnings:', result.warnings);
+        }
+        
+        if (result.proposedSegments && result.proposedSegments.length > 0) {
+            // Apply segments
+            this.segments = [];
+            this.segmentIdCounter = 0;
+            
+            for (const seg of result.proposedSegments) {
+                this.addSegment(
+                    seg.type,
+                    seg.freqMin || 0,
+                    seg.freqMax || 0,
+                    seg.durationMin,
+                    seg.durationMax
+                );
+            }
+            
+            let statusMsg = `Auto-tuned! Found ${result.proposedSegments.length} segments.`;
+            
+            // Show pattern info if available
+            if (result.patternInfo && result.patternInfo.type !== 'custom') {
+                statusMsg = `Detected ${result.patternInfo.type} Pattern! Confidence: ${(result.patternInfo.confidence * 100).toFixed(0)}%`;
+                
+                patternInfoDiv.style.display = 'block';
+                patternInfoDiv.innerHTML = `
+                    <div class="pattern-badge pattern-${result.patternInfo.type}">
+                        ${result.patternInfo.type} Pattern Detected
+                    </div>
+                    <div class="pattern-details">
+                        Freq: ${Math.round(result.patternInfo.avgFrequency)}Hz | 
+                        Duration: ${(result.patternInfo.avgDuration*1000).toFixed(0)}ms
+                    </div>
+                `;
+            } else {
+                patternInfoDiv.style.display = 'none';
+            }
+            
+            if (result.noiseFloor) {
+                statusMsg += ` (Noise Floor: ${result.noiseFloor.toFixed(4)})`;
+            }
+            
+            document.getElementById('statusText').textContent = statusMsg;
+            
+            // Visualize raw segments
+            this.visualizer.drawEvents(
+                result.rawSegments.map(s => ({
+                    type: s.type,
+                    timestamp: s.startTime,
+                    duration: s.duration,
+                    frequency: s.frequency || 0
+                })),
+                result.totalDuration
+            );
+            
+            // Show A/B comparison section
+            if (abSection) {
+                abSection.style.display = 'block';
+                document.getElementById('previewDetectedBtn').disabled = false;
+                document.getElementById('abCompareBtn').disabled = false;
+            }
+        } else {
+            document.getElementById('statusText').textContent = 'No patterns detected. Try adjusting threshold or recording longer sample.';
+            patternInfoDiv.style.display = 'none';
+            if (abSection) abSection.style.display = 'none';
+        }
+    }
+    
+    /**
+     * Play a preview of the detected pattern (synthetic audio)
+     */
+    playDetectedPreview() {
+        if (this.segments.length === 0) return;
+        
+        const indicator = document.getElementById('abCompareIndicator');
+        const label = document.getElementById('abLabel');
+        const progressBar = document.getElementById('abProgressBar');
+        const detectedTrackBar = document.getElementById('detectedTrackBar');
+        
+        // Show indicator
+        indicator.style.display = 'block';
+        label.textContent = '▶ Playing: Detected Pattern';
+        label.className = 'ab-label playing-detected';
+        
+        // Add playhead to track bar
+        detectedTrackBar.classList.add('playing');
+        let playhead = detectedTrackBar.querySelector('.playhead');
+        if (!playhead) {
+            playhead = document.createElement('div');
+            playhead.className = 'playhead';
+            detectedTrackBar.appendChild(playhead);
+        }
+        
+        const cycles = parseInt(document.getElementById('confirmCycles').value) || 1;
+        const result = this.audioEngine.generateSound(this.segments, cycles);
+        
+        if (result && result.buffer) {
+            this.audioEngine.playBuffer(result.buffer);
+            const duration = result.buffer.duration * 1000;
+            
+            let startTime = performance.now();
+            const animateProgress = () => {
+                const elapsed = performance.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                progressBar.style.width = (progress * 100) + '%';
+                playhead.style.left = (progress * 100) + '%';
+                
+                if (progress < 1) {
+                    requestAnimationFrame(animateProgress);
+                } else {
+                    setTimeout(() => {
+                        indicator.style.display = 'none';
+                        detectedTrackBar.classList.remove('playing');
+                        playhead.remove();
+                        progressBar.style.width = '0%';
+                    }, 500);
+                }
+            };
+            requestAnimationFrame(animateProgress);
+        }
+    }
+    
+    /**
+     * Play A/B comparison: original recording, then detected pattern
+     */
+    async playABComparison() {
+        if (!this.audioEngine.hasRecording() || this.segments.length === 0) return;
+        
+        const indicator = document.getElementById('abCompareIndicator');
+        const label = document.getElementById('abLabel');
+        const progressBar = document.getElementById('abProgressBar');
+        const originalTrackBar = document.getElementById('originalTrackBar');
+        const detectedTrackBar = document.getElementById('detectedTrackBar');
+        
+        // Disable button during playback
+        document.getElementById('abCompareBtn').disabled = true;
+        
+        // 1. Play original
+        indicator.style.display = 'block';
+        label.textContent = '▶ Playing: Original Recording';
+        label.className = 'ab-label playing-original';
+        originalTrackBar.classList.add('playing');
+        
+        let playhead = document.createElement('div');
+        playhead.className = 'playhead';
+        originalTrackBar.appendChild(playhead);
+        
+        const playResult = this.audioEngine.playRecording();
+        if (playResult) {
+            const origDuration = playResult.duration * 1000;
+            await this.animatePlayhead(playhead, progressBar, origDuration, 0, 50);
+        }
+        
+        originalTrackBar.classList.remove('playing');
+        playhead.remove();
+        
+        // 2. Wait 1 second pause
+        label.textContent = '⏸ Pause...';
+        label.className = 'ab-label';
+        progressBar.style.width = '50%';
+        await new Promise(r => setTimeout(r, 1000));
+        
+        // 3. Play detected pattern
+        label.textContent = '▶ Playing: Detected Pattern';
+        label.className = 'ab-label playing-detected';
+        detectedTrackBar.classList.add('playing');
+        
+        playhead = document.createElement('div');
+        playhead.className = 'playhead';
+        detectedTrackBar.appendChild(playhead);
+        
+        const cycles = parseInt(document.getElementById('confirmCycles').value) || 1;
+        const synthResult = this.audioEngine.generateSound(this.segments, cycles);
+        
+        if (synthResult && synthResult.buffer) {
+            this.audioEngine.playBuffer(synthResult.buffer);
+            const synthDuration = synthResult.buffer.duration * 1000;
+            await this.animatePlayhead(playhead, progressBar, synthDuration, 50, 100);
+        }
+        
+        // Cleanup
+        detectedTrackBar.classList.remove('playing');
+        playhead.remove();
+        
+        setTimeout(() => {
+            indicator.style.display = 'none';
+            progressBar.style.width = '0%';
+            document.getElementById('abCompareBtn').disabled = false;
+        }, 500);
+    }
+    
+    /**
+     * Animate playhead and progress bar
+     */
+    animatePlayhead(playhead, progressBar, duration, startPercent, endPercent) {
+        return new Promise(resolve => {
+            const startTime = performance.now();
+            const range = endPercent - startPercent;
+            
+            const animate = () => {
+                const elapsed = performance.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                playhead.style.left = (progress * 100) + '%';
+                progressBar.style.width = (startPercent + progress * range) + '%';
+                
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    resolve();
+                }
+            };
+            requestAnimationFrame(animate);
+        });
     }
 
     // --- Undo/Redo System ---
@@ -578,91 +942,9 @@ class App {
         document.getElementById('statusText').textContent = `Analysis complete (${resolution}ms resolution)`;
     }
 
-    addDefaultSegments() {
-        // Add a sample pattern: Beep -> Silence -> Beep -> Silence
-        this.addSegment('tone', 2900, 3100, 0.4, 0.6);
-        this.addSegment('silence', 0, 0, 0.1, 0.3);
-        this.addSegment('tone', 2900, 3100, 0.4, 0.6);
-        this.addSegment('silence', 0, 0, 0.8, 1.2);
-        
-        this.updatePreview();
-    }
-
-    addSegment(type = 'tone', freqMin = 1000, freqMax = 1500, durationMin = 0.3, durationMax = 0.5) {
-        const id = this.segmentIdCounter++;
-        
-        this.segments.push({
-            id,
-            type,
-            freqMin,
-            freqMax,
-            durationMin,
-            durationMax
-        });
-        
-        this.renderSegments();
-        this.updatePreview();
-        this.updateConfig();
-    }
-
-    removeSegment(id) {
-        this.segments = this.segments.filter(s => s.id !== id);
-        this.renderSegments();
-        this.updatePreview();
-        this.updateConfig();
-    }
-
-    duplicateSegment(id) {
-        const index = this.segments.findIndex(s => s.id === id);
-        if (index === -1) return;
-        
-        const original = this.segments[index];
-        const duplicate = {
-            id: this.segmentIdCounter++,
-            type: original.type,
-            freqMin: original.freqMin,
-            freqMax: original.freqMax,
-            durationMin: original.durationMin,
-            durationMax: original.durationMax
-        };
-        
-        // Insert after the original
-        this.segments.splice(index + 1, 0, duplicate);
-        this.renderSegments();
-        this.updatePreview();
-        this.updateConfig();
-    }
-
-    moveSegment(id, direction) {
-        const index = this.segments.findIndex(s => s.id === id);
-        if (index === -1) return;
-        
-        const newIndex = index + direction;
-        if (newIndex < 0 || newIndex >= this.segments.length) return;
-        
-        // Swap segments
-        [this.segments[index], this.segments[newIndex]] = 
-        [this.segments[newIndex], this.segments[index]];
-        
-        this.renderSegments();
-        this.updatePreview();
-        this.updateConfig();
-        
-        // Re-focus the moved segment's first input for continued keyboard navigation
-        setTimeout(() => {
-            const movedEl = document.querySelector(`.segment-item[data-id="${id}"] input`);
-            if (movedEl) movedEl.focus();
-        }, 50);
-    }
-
-    updateSegment(id, field, value) {
-        const seg = this.segments.find(s => s.id === id);
-        if (seg) {
-            seg[field] = field === 'type' ? value : parseFloat(value);
-            this.updatePreview();
-            this.updateConfig();
-        }
-    }
+    // Note: addDefaultSegments is defined earlier in the file and handles saveState properly
+    // Note: addSegment, removeSegment, duplicateSegment, moveSegment, updateSegment 
+    //       are defined earlier with proper saveState handling
 
     renderSegments() {
         const container = document.getElementById('segmentList');
@@ -674,233 +956,99 @@ class App {
             
             el.className = `segment-item segment-${seg.type} ${isSelected ? 'selected' : ''}`;
             el.dataset.id = seg.id;
-            el.tabIndex = 0; // Make focusable for keyboard navigation
             
             const isFirst = index === 0;
             const isLast = index === this.segments.length - 1;
             
             el.innerHTML = `
                 <div class="segment-header">
-                    <span class="segment-type">
-                        <span class="segment-indicator">${seg.type === 'tone' ? '♪' : '⏸'}</span>
-                        <span class="segment-number">#${index + 1}</span>
-                        <select data-id="${seg.id}" data-field="type">
+                    <div class="segment-title">
+                        <div class="segment-icon">
+                            ${seg.type === 'tone' 
+                                ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>' 
+                                : '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>'}
+                        </div>
+                        <span class="segment-label">#${index + 1}</span>
+                        <select class="segment-type-select" data-id="${seg.id}" data-field="type">
                             <option value="tone" ${seg.type === 'tone' ? 'selected' : ''}>Tone</option>
                             <option value="silence" ${seg.type === 'silence' ? 'selected' : ''}>Silence</option>
                         </select>
-                    </span>
-                    <div class="segment-actions">
-                        <button class="segment-action-btn move-up" data-id="${seg.id}" title="Move up (Shift+↑)" ${isFirst ? 'disabled' : ''}>↑</button>
-                        <button class="segment-action-btn move-down" data-id="${seg.id}" title="Move down (Shift+↓)" ${isLast ? 'disabled' : ''}>↓</button>
-                        <button class="segment-action-btn duplicate" data-id="${seg.id}" title="Duplicate">⧉</button>
-                        <button class="segment-action-btn remove-btn" data-id="${seg.id}" title="Remove">×</button>
+                    </div>
+                    <div class="segment-toolbar">
+                        <button class="tool-btn move-up" data-id="${seg.id}" title="Move Up" ${isFirst ? 'disabled' : ''}>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>
+                        </button>
+                        <button class="tool-btn move-down" data-id="${seg.id}" title="Move Down" ${isLast ? 'disabled' : ''}>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
+                        </button>
+                        <button class="tool-btn duplicate" data-id="${seg.id}" title="Duplicate">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                        </button>
+                        <button class="tool-btn remove-btn" data-id="${seg.id}" title="Remove">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                        </button>
                     </div>
                 </div>
-                <div class="segment-fields">
+                <div class="segment-body">
                     ${seg.type === 'tone' ? `
-                        <label>
-                            Freq Min (Hz)
-                            <input type="number" value="${seg.freqMin}" data-id="${seg.id}" data-field="freqMin" />
-                        </label>
-                        <label>
-                            Freq Max (Hz)
-                            <input type="number" value="${seg.freqMax}" data-id="${seg.id}" data-field="freqMax" />
-                        </label>
+                        <div class="field-group">
+                            <label class="field-label">Freq Min</label>
+                            <input class="field-input" type="number" value="${seg.freqMin}" data-id="${seg.id}" data-field="freqMin" />
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label">Freq Max</label>
+                            <input class="field-input" type="number" value="${seg.freqMax}" data-id="${seg.id}" data-field="freqMax" />
+                        </div>
                     ` : ''}
-                    <label>
-                        Duration Min (s)
-                        <input type="number" step="0.1" value="${seg.durationMin}" data-id="${seg.id}" data-field="durationMin" />
-                    </label>
-                    <label>
-                        Duration Max (s)
-                        <input type="number" step="0.1" value="${seg.durationMax}" data-id="${seg.id}" data-field="durationMax" />
-                    </label>
+                    <div class="field-group">
+                        <label class="field-label">Duration Min</label>
+                        <input class="field-input" type="number" step="0.1" value="${seg.durationMin}" data-id="${seg.id}" data-field="durationMin" />
+                    </div>
+                    <div class="field-group">
+                        <label class="field-label">Duration Max</label>
+                        <input class="field-input" type="number" step="0.1" value="${seg.durationMax}" data-id="${seg.id}" data-field="durationMax" />
+                    </div>
                 </div>
             `;
             
-            // Selection click listener
+            // Card Click - Select
             el.addEventListener('click', (e) => {
-                // Ignore if clicked on input, button or select
-                if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
-                
-                // Allow Ctrl/Shift/Meta for multi-selection
+                // Ignore if clicking internal interactive elements
+                if (e.target.closest('button, input, select')) return;
                 this.toggleSelection(seg.id, e.ctrlKey || e.metaKey || e.shiftKey);
             });
             
             container.appendChild(el);
         });
         
-        // Attach event listeners for inputs and selects
+        // Attach Input Listeners
         container.querySelectorAll('input, select').forEach(input => {
             input.addEventListener('change', (e) => {
                 const id = parseInt(e.target.dataset.id);
                 const field = e.target.dataset.field;
                 this.updateSegment(id, field, e.target.value);
-                
-                // Re-render if type changed
-                if (field === 'type') {
-                    this.renderSegments();
-                }
+                if (field === 'type') this.renderSegments();
             });
             
-            // Keyboard shortcuts for reordering
-            input.addEventListener('keydown', (e) => {
-                // Prevent event bubbling to selection handler if necessary
-                e.stopPropagation();
-                
-                if (e.shiftKey) {
-                    const id = parseInt(e.target.dataset.id);
-                    if (e.key === 'ArrowUp') {
-                        e.preventDefault();
-                        this.moveSegment(id, -1);
-                    } else if (e.key === 'ArrowDown') {
-                        e.preventDefault();
-                        this.moveSegment(id, 1);
-                    }
-                }
-            });
-            
-            // Prevent triggering selection when clicking inputs
+            // Stop propagation to prevent selecting card when clicking input
             input.addEventListener('click', (e) => e.stopPropagation());
         });
         
-        // Button Listeners with stopPropagation to prevent selection toggle
-        container.querySelectorAll('.move-up').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const id = parseInt(e.target.dataset.id);
-                this.moveSegment(id, -1);
-            });
-        });
+        // Attach Toolbar Button Listeners
+        const actions = [
+            { cls: '.move-up', action: (id) => this.moveSegment(id, -1) },
+            { cls: '.move-down', action: (id) => this.moveSegment(id, 1) },
+            { cls: '.duplicate', action: (id) => this.duplicateSegment(id) },
+            { cls: '.remove-btn', action: (id) => this.removeSegment(id) }
+        ];
         
-        container.querySelectorAll('.move-down').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const id = parseInt(e.target.dataset.id);
-                this.moveSegment(id, 1);
-            });
-        });
-        
-        container.querySelectorAll('.duplicate').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const id = parseInt(e.target.dataset.id);
-                this.duplicateSegment(id);
-            });
-        });
-        
-        container.querySelectorAll('.remove-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const id = parseInt(e.target.dataset.id);
-                this.removeSegment(id);
-            });
-        });
-    }            el.className = `segment-item segment-${seg.type}`;
-            el.dataset.id = seg.id;
-            el.tabIndex = 0; // Make focusable for keyboard navigation
-            
-            const isFirst = index === 0;
-            const isLast = index === this.segments.length - 1;
-            
-            el.innerHTML = `
-                <div class="segment-header">
-                    <span class="segment-type">
-                        <span class="segment-indicator">${seg.type === 'tone' ? '♪' : '⏸'}</span>
-                        <span class="segment-number">#${index + 1}</span>
-                        <select data-id="${seg.id}" data-field="type">
-                            <option value="tone" ${seg.type === 'tone' ? 'selected' : ''}>Tone</option>
-                            <option value="silence" ${seg.type === 'silence' ? 'selected' : ''}>Silence</option>
-                        </select>
-                    </span>
-                    <div class="segment-actions">
-                        <button class="segment-action-btn move-up" data-id="${seg.id}" title="Move up (Shift+↑)" ${isFirst ? 'disabled' : ''}>↑</button>
-                        <button class="segment-action-btn move-down" data-id="${seg.id}" title="Move down (Shift+↓)" ${isLast ? 'disabled' : ''}>↓</button>
-                        <button class="segment-action-btn duplicate" data-id="${seg.id}" title="Duplicate">⧉</button>
-                        <button class="segment-action-btn remove-btn" data-id="${seg.id}" title="Remove">×</button>
-                    </div>
-                </div>
-                <div class="segment-fields">
-                    ${seg.type === 'tone' ? `
-                        <label>
-                            Freq Min (Hz)
-                            <input type="number" value="${seg.freqMin}" data-id="${seg.id}" data-field="freqMin" />
-                        </label>
-                        <label>
-                            Freq Max (Hz)
-                            <input type="number" value="${seg.freqMax}" data-id="${seg.id}" data-field="freqMax" />
-                        </label>
-                    ` : ''}
-                    <label>
-                        Duration Min (s)
-                        <input type="number" step="0.1" value="${seg.durationMin}" data-id="${seg.id}" data-field="durationMin" />
-                    </label>
-                    <label>
-                        Duration Max (s)
-                        <input type="number" step="0.1" value="${seg.durationMax}" data-id="${seg.id}" data-field="durationMax" />
-                    </label>
-                </div>
-            `;
-            container.appendChild(el);
-        });
-        
-        // Attach event listeners for inputs and selects
-        container.querySelectorAll('input, select').forEach(input => {
-            input.addEventListener('change', (e) => {
-                const id = parseInt(e.target.dataset.id);
-                const field = e.target.dataset.field;
-                this.updateSegment(id, field, e.target.value);
-                
-                // Re-render if type changed
-                if (field === 'type') {
-                    this.renderSegments();
-                }
-            });
-            
-            // Keyboard shortcuts for reordering
-            input.addEventListener('keydown', (e) => {
-                if (e.shiftKey) {
-                    const id = parseInt(e.target.dataset.id);
-                    if (e.key === 'ArrowUp') {
-                        e.preventDefault();
-                        this.moveSegment(id, -1);
-                    } else if (e.key === 'ArrowDown') {
-                        e.preventDefault();
-                        this.moveSegment(id, 1);
-                    }
-                }
-            });
-        });
-        
-        // Move up buttons
-        container.querySelectorAll('.move-up').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const id = parseInt(e.target.dataset.id);
-                this.moveSegment(id, -1);
-            });
-        });
-        
-        // Move down buttons
-        container.querySelectorAll('.move-down').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const id = parseInt(e.target.dataset.id);
-                this.moveSegment(id, 1);
-            });
-        });
-        
-        // Duplicate buttons
-        container.querySelectorAll('.duplicate').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const id = parseInt(e.target.dataset.id);
-                this.duplicateSegment(id);
-            });
-        });
-        
-        // Remove buttons
-        container.querySelectorAll('.remove-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const id = parseInt(e.target.dataset.id);
-                this.removeSegment(id);
+        actions.forEach(({ cls, action }) => {
+            container.querySelectorAll(cls).forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const id = parseInt(e.currentTarget.dataset.id);
+                    action(id);
+                });
             });
         });
     }
@@ -1459,597 +1607,8 @@ class App {
         }
     }
 
-    /**
-     * Re-analyze the audio with current resolution settings
-     */
-    reanalyzeAudio() {
-        if (!this.audioEngine.hasRecording()) return;
-        
-        const resolution = this.audioEngine.getResolutionMs();
-        document.getElementById('statusText').textContent = `Re-analyzing with ${resolution}ms resolution...`;
-        
-        // Force re-analysis
-        this.audioEngine._performFrequencyAnalysis();
-        
-        // Update visualizations
-        this.updateAudiogram();
-        this.updateFrequencyTimeline();
-        
-        document.getElementById('statusText').textContent = `Analysis complete (${resolution}ms resolution)`;
-    }
-
-    addDefaultSegments() {
-        // Add a sample pattern: Beep -> Silence -> Beep -> Silence
-        this.addSegment('tone', 2900, 3100, 0.4, 0.6);
-        this.addSegment('silence', 0, 0, 0.1, 0.3);
-        this.addSegment('tone', 2900, 3100, 0.4, 0.6);
-        this.addSegment('silence', 0, 0, 0.8, 1.2);
-        
-        this.updatePreview();
-    }
-
-    addSegment(type = 'tone', freqMin = 1000, freqMax = 1500, durationMin = 0.3, durationMax = 0.5) {
-        const id = this.segmentIdCounter++;
-        
-        this.segments.push({
-            id,
-            type,
-            freqMin,
-            freqMax,
-            durationMin,
-            durationMax
-        });
-        
-        this.renderSegments();
-        this.updatePreview();
-        this.updateConfig();
-    }
-
-    removeSegment(id) {
-        this.segments = this.segments.filter(s => s.id !== id);
-        this.renderSegments();
-        this.updatePreview();
-        this.updateConfig();
-    }
-
-    duplicateSegment(id) {
-        const index = this.segments.findIndex(s => s.id === id);
-        if (index === -1) return;
-        
-        const original = this.segments[index];
-        const duplicate = {
-            id: this.segmentIdCounter++,
-            type: original.type,
-            freqMin: original.freqMin,
-            freqMax: original.freqMax,
-            durationMin: original.durationMin,
-            durationMax: original.durationMax
-        };
-        
-        // Insert after the original
-        this.segments.splice(index + 1, 0, duplicate);
-        this.renderSegments();
-        this.updatePreview();
-        this.updateConfig();
-    }
-
-    moveSegment(id, direction) {
-        const index = this.segments.findIndex(s => s.id === id);
-        if (index === -1) return;
-        
-        const newIndex = index + direction;
-        if (newIndex < 0 || newIndex >= this.segments.length) return;
-        
-        // Swap segments
-        [this.segments[index], this.segments[newIndex]] = 
-        [this.segments[newIndex], this.segments[index]];
-        
-        this.renderSegments();
-        this.updatePreview();
-        this.updateConfig();
-        
-        // Re-focus the moved segment's first input for continued keyboard navigation
-        setTimeout(() => {
-            const movedEl = document.querySelector(`.segment-item[data-id="${id}"] input`);
-            if (movedEl) movedEl.focus();
-        }, 50);
-    }
-
-    updateSegment(id, field, value) {
-        const seg = this.segments.find(s => s.id === id);
-        if (seg) {
-            seg[field] = field === 'type' ? value : parseFloat(value);
-            this.updatePreview();
-            this.updateConfig();
-        }
-    }
-
-    renderSegments() {
-        const container = document.getElementById('segmentList');
-        container.innerHTML = '';
-        
-        this.segments.forEach((seg, index) => {
-            const el = document.createElement('div');
-            el.className = `segment-item segment-${seg.type}`;
-            el.dataset.id = seg.id;
-            el.tabIndex = 0; // Make focusable for keyboard navigation
-            
-            const isFirst = index === 0;
-            const isLast = index === this.segments.length - 1;
-            
-            el.innerHTML = `
-                <div class="segment-header">
-                    <span class="segment-type">
-                        <span class="segment-indicator">${seg.type === 'tone' ? '♪' : '⏸'}</span>
-                        <span class="segment-number">#${index + 1}</span>
-                        <select data-id="${seg.id}" data-field="type">
-                            <option value="tone" ${seg.type === 'tone' ? 'selected' : ''}>Tone</option>
-                            <option value="silence" ${seg.type === 'silence' ? 'selected' : ''}>Silence</option>
-                        </select>
-                    </span>
-                    <div class="segment-actions">
-                        <button class="segment-action-btn move-up" data-id="${seg.id}" title="Move up (Shift+↑)" ${isFirst ? 'disabled' : ''}>↑</button>
-                        <button class="segment-action-btn move-down" data-id="${seg.id}" title="Move down (Shift+↓)" ${isLast ? 'disabled' : ''}>↓</button>
-                        <button class="segment-action-btn duplicate" data-id="${seg.id}" title="Duplicate">⧉</button>
-                        <button class="segment-action-btn remove-btn" data-id="${seg.id}" title="Remove">×</button>
-                    </div>
-                </div>
-                <div class="segment-fields">
-                    ${seg.type === 'tone' ? `
-                        <label>
-                            Freq Min (Hz)
-                            <input type="number" value="${seg.freqMin}" data-id="${seg.id}" data-field="freqMin" />
-                        </label>
-                        <label>
-                            Freq Max (Hz)
-                            <input type="number" value="${seg.freqMax}" data-id="${seg.id}" data-field="freqMax" />
-                        </label>
-                    ` : ''}
-                    <label>
-                        Duration Min (s)
-                        <input type="number" step="0.1" value="${seg.durationMin}" data-id="${seg.id}" data-field="durationMin" />
-                    </label>
-                    <label>
-                        Duration Max (s)
-                        <input type="number" step="0.1" value="${seg.durationMax}" data-id="${seg.id}" data-field="durationMax" />
-                    </label>
-                </div>
-            `;
-            container.appendChild(el);
-        });
-        
-        // Attach event listeners for inputs and selects
-        container.querySelectorAll('input, select').forEach(input => {
-            input.addEventListener('change', (e) => {
-                const id = parseInt(e.target.dataset.id);
-                const field = e.target.dataset.field;
-                this.updateSegment(id, field, e.target.value);
-                
-                // Re-render if type changed
-                if (field === 'type') {
-                    this.renderSegments();
-                }
-            });
-            
-            // Keyboard shortcuts for reordering
-            input.addEventListener('keydown', (e) => {
-                if (e.shiftKey) {
-                    const id = parseInt(e.target.dataset.id);
-                    if (e.key === 'ArrowUp') {
-                        e.preventDefault();
-                        this.moveSegment(id, -1);
-                    } else if (e.key === 'ArrowDown') {
-                        e.preventDefault();
-                        this.moveSegment(id, 1);
-                    }
-                }
-            });
-        });
-        
-        // Move up buttons
-        container.querySelectorAll('.move-up').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const id = parseInt(e.target.dataset.id);
-                this.moveSegment(id, -1);
-            });
-        });
-        
-        // Move down buttons
-        container.querySelectorAll('.move-down').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const id = parseInt(e.target.dataset.id);
-                this.moveSegment(id, 1);
-            });
-        });
-        
-        // Duplicate buttons
-        container.querySelectorAll('.duplicate').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const id = parseInt(e.target.dataset.id);
-                this.duplicateSegment(id);
-            });
-        });
-        
-        // Remove buttons
-        container.querySelectorAll('.remove-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const id = parseInt(e.target.dataset.id);
-                this.removeSegment(id);
-            });
-        });
-    }
-
-    updatePreview() {
-        const cycles = parseInt(document.getElementById('confirmCycles').value) || 1;
-        this.visualizer.drawSegmentPreview(this.segments, cycles);
-    }
-
-    updateConfig() {
-        const name = document.getElementById('profileName').value || 'NewAlarm';
-        const cycles = parseInt(document.getElementById('confirmCycles').value) || 1;
-        
-        let yaml = `# Alarm Profile: ${name}\n`;
-        yaml += `name: "${name}"\n`;
-        yaml += `confirmation_cycles: ${cycles}\n`;
-        yaml += `segments:\n`;
-        
-        this.segments.forEach((seg, i) => {
-            yaml += `  - type: "${seg.type}"\n`;
-            if (seg.type === 'tone') {
-                yaml += `    frequency:\n`;
-                yaml += `      min: ${seg.freqMin}\n`;
-                yaml += `      max: ${seg.freqMax}\n`;
-            }
-            yaml += `    duration:\n`;
-            yaml += `      min: ${seg.durationMin}\n`;
-            yaml += `      max: ${seg.durationMax}\n`;
-        });
-        
-        document.getElementById('configOutput').textContent = yaml;
-    }
-
-    async startRecording() {
-        const success = await this.audioEngine.startRecording();
-        if (success) {
-            document.getElementById('recordBtn').classList.add('recording');
-            document.getElementById('recordBtn').disabled = true;
-            document.getElementById('stopBtn').disabled = false;
-            document.getElementById('playbackBtn').disabled = true;
-            document.getElementById('downloadBtn').disabled = true;
-            document.getElementById('analyzeBtn').disabled = true;
-            document.getElementById('queryBtn').disabled = true;
-            document.getElementById('statusText').textContent = 'Recording...';
-            
-            this.visualizer.clear();
-            this.startVisualization();
-        }
-    }
-
-    stopRecording() {
-        this.audioEngine.stopRecording();
-        this.stopVisualization();
-        
-        document.getElementById('recordBtn').classList.remove('recording');
-        document.getElementById('recordBtn').disabled = false;
-        document.getElementById('stopBtn').disabled = true;
-        document.getElementById('playbackBtn').disabled = false;
-        document.getElementById('downloadBtn').disabled = false;
-        document.getElementById('analyzeBtn').disabled = false;
-        document.getElementById('queryBtn').disabled = false;
-        document.getElementById('reanalyzeBtn').disabled = false;
-        document.getElementById('statusText').textContent = 'Recording stopped - Click Auto-Tune to analyze';
-        
-        // Show visualizations after short delay (to let audio decode)
-        setTimeout(() => {
-            this.updateAudiogram();
-            this.updateFrequencyTimeline();
-        }, 500);
-    }
-
-    /**
-     * Handle audio file upload
-     */
-    async handleUpload(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        
-        document.getElementById('statusText').textContent = `Loading ${file.name}...`;
-        
-        const result = await this.audioEngine.uploadAudio(file);
-        
-        if (result.success) {
-            const duration = this.audioEngine.getRecordedDuration();
-            document.getElementById('statusText').textContent = `Loaded ${file.name} (${duration.toFixed(1)}s)`;
-            document.getElementById('durationText').textContent = duration.toFixed(1) + 's';
-            
-            document.getElementById('playbackBtn').disabled = false;
-            document.getElementById('downloadBtn').disabled = false;
-            document.getElementById('analyzeBtn').disabled = false;
-            document.getElementById('queryBtn').disabled = false;
-            document.getElementById('reanalyzeBtn').disabled = false;
-            
-            // Update visualizations
-            this.updateAudiogram();
-            this.updateFrequencyTimeline();
-        } else {
-            const errorMsg = result.error || 'Unknown error';
-            document.getElementById('statusText').textContent = `Failed to load: ${errorMsg}`;
-            console.error('Upload failed:', errorMsg);
-        }
-        
-        // Reset input so same file can be re-uploaded
-        event.target.value = '';
-    }
-
-    /**
-     * Download the current recording
-     */
-    downloadRecording() {
-        const profileName = document.getElementById('profileName').value || 'alarm';
-        const success = this.audioEngine.downloadRecording(profileName + '_recording');
-        
-        if (success) {
-            document.getElementById('statusText').textContent = 'Recording downloaded!';
-        } else {
-            document.getElementById('statusText').textContent = 'No recording to download';
-        }
-    }
-
-    /**
-     * Update the frequency timeline visualization
-     */
-    updateFrequencyTimeline() {
-        const analysis = this.audioEngine.getFrequencyAnalysis();
-        if (analysis) {
-            this.visualizer.drawFrequencyTimeline(analysis);
-        }
-    }
-
-    /**
-     * Query frequency presence in the recording
-     */
-    queryFrequency() {
-        const targetFreq = parseFloat(document.getElementById('queryFrequency').value) || 3000;
-        const tolerance = parseFloat(document.getElementById('queryTolerance').value) || 100;
-        
-        const result = this.audioEngine.queryFrequency(targetFreq, tolerance);
-        
-        const resultsDiv = document.getElementById('queryResults');
-        
-        if (result.error) {
-            resultsDiv.innerHTML = `<span class="error">${result.error}</span>`;
-            return;
-        }
-        
-        // Build results HTML
-        let html = `
-            <div class="query-result-item">
-                <span class="label">Target</span>
-                <span class="value">${result.targetFreq}Hz ±${result.tolerance}Hz</span>
-            </div>
-            <div class="query-result-item">
-                <span class="label">Total Presence</span>
-                <span class="value highlight">${result.totalPresenceDuration.toFixed(2)}s (${result.presencePercentage.toFixed(1)}%)</span>
-            </div>
-            <div class="query-result-item">
-                <span class="label">Occurrences</span>
-                <span class="value">${result.windowCount} windows</span>
-            </div>
-            <div class="query-result-item">
-                <span class="label">Avg Duration</span>
-                <span class="value">${result.averageWindowDuration.toFixed(3)}s</span>
-            </div>
-        `;
-        
-        if (result.presenceWindows.length > 0 && result.presenceWindows.length <= 10) {
-            html += `<div class="query-windows"><span class="label">Windows:</span><ul>`;
-            for (const w of result.presenceWindows) {
-                html += `<li>${w.start.toFixed(2)}s – ${w.end.toFixed(2)}s (${(w.end - w.start).toFixed(2)}s)</li>`;
-            }
-            html += `</ul></div>`;
-        } else if (result.presenceWindows.length > 10) {
-            html += `<div class="query-windows"><span class="label">First 5 windows:</span><ul>`;
-            for (let i = 0; i < 5; i++) {
-                const w = result.presenceWindows[i];
-                html += `<li>${w.start.toFixed(2)}s – ${w.end.toFixed(2)}s</li>`;
-            }
-            html += `</ul></div>`;
-        }
-        
-        resultsDiv.innerHTML = html;
-    }
-
-    playRecording() {
-        const result = this.audioEngine.playRecording();
-        if (!result) {
-            document.getElementById('statusText').textContent = 'No recording to play';
-            return;
-        }
-        
-        document.getElementById('statusText').textContent = 'Playing back...';
-        document.getElementById('playbackBtn').disabled = true;
-        
-        // Start visualization during playback with frequency timeline sync
-        this.startPlaybackVisualization(result.duration);
-    }
-    
-    startPlaybackVisualization(duration) {
-        const startTime = performance.now();
-        const durationMs = duration * 1000;
-        const analysis = this.audioEngine.getFrequencyAnalysis();
-        
-        const draw = () => {
-            const data = this.audioEngine.getAnalyserData();
-            if (data) {
-                this.visualizer.drawWaveform(data.timeData, data.bufferLength);
-            }
-            
-            const elapsed = performance.now() - startTime;
-            const progress = Math.min(elapsed / durationMs, 1);
-            const currentTime = progress * duration;
-            
-            document.getElementById('durationText').textContent = currentTime.toFixed(1) + 's';
-            
-            // Update visualizations with playhead
-            if (analysis) {
-                this.visualizer.drawAudiogram(analysis, progress);
-                this.visualizer.drawFrequencyTimeline(analysis, progress);
-            }
-            
-            if (progress < 1) {
-                this.animationId = requestAnimationFrame(draw);
-            } else {
-                // Playback finished
-                document.getElementById('statusText').textContent = `Playback complete (${duration.toFixed(1)}s)`;
-                document.getElementById('playbackBtn').disabled = false;
-                this.animationId = null;
-                
-                // Redraw without playhead
-                if (analysis) {
-                    this.visualizer.drawAudiogram(analysis);
-                    this.visualizer.drawFrequencyTimeline(analysis);
-                }
-            }
-        };
-        draw();
-    }
-
-    startVisualization() {
-        const draw = () => {
-            const data = this.audioEngine.getAnalyserData();
-            if (data) {
-                this.visualizer.drawLiveAudiogram(data.timeData, data.bufferLength);
-                this.visualizer.drawLiveFrequency(data.freqData, data.bufferLength);
-            }
-            
-            const duration = this.audioEngine.getRecordingDuration();
-            document.getElementById('durationText').textContent = duration.toFixed(1) + 's';
-            
-            this.animationId = requestAnimationFrame(draw);
-        };
-        draw();
-    }
-
-    stopVisualization() {
-        if (this.animationId) {
-            cancelAnimationFrame(this.animationId);
-            this.animationId = null;
-        }
-    }
-
-    generateSound() {
-        if (this.segments.length === 0) {
-            alert('Add at least one segment to generate sound!');
-            return;
-        }
-        
-        const cycles = parseInt(document.getElementById('confirmCycles').value) || 1;
-        
-        // Generate and play the sound - now returns event timeline for sync
-        const result = this.audioEngine.generateSound(this.segments, cycles);
-        this.generatedEventTimeline = result.eventTimeline;
-        
-        // Start playhead animation with proper sync
-        this.startPlayheadAnimation(result.totalDuration, result.eventTimeline);
-        
-        document.getElementById('statusText').textContent = 'Playing generated sound...';
-    }
-
-    /**
-     * Animate a playhead bar across the Detected Events canvas during playback
-     * Now with event timeline sync
-     */
-    startPlayheadAnimation(duration, eventTimeline = null) {
-        const startTime = performance.now();
-        const durationMs = duration * 1000;
-        
-        // Stop any existing animation
-        if (this.playheadAnimationId) {
-            cancelAnimationFrame(this.playheadAnimationId);
-        }
-        
-        const animate = () => {
-            const elapsed = performance.now() - startTime;
-            const progress = Math.min(elapsed / durationMs, 1);
-            const currentTime = progress * duration;
-            
-            // Update duration display
-            document.getElementById('durationText').textContent = currentTime.toFixed(1) + 's';
-            
-            // Redraw segments with playhead
-            const cycles = parseInt(document.getElementById('confirmCycles').value) || 1;
-            this.visualizer.drawSegmentPreview(this.segments, cycles, progress, eventTimeline);
-            
-            if (progress < 1) {
-                this.playheadAnimationId = requestAnimationFrame(animate);
-            } else {
-                // Playback finished
-                document.getElementById('statusText').textContent = `Playback complete (${duration.toFixed(1)}s)`;
-                this.playheadAnimationId = null;
-                
-                // Redraw without playhead after a short delay
-                setTimeout(() => {
-                    this.visualizer.drawSegmentPreview(this.segments, cycles);
-                }, 500);
-            }
-        };
-        
-        animate();
-    }
-
-    exportConfig() {
-        const yamlContent = document.getElementById('configOutput').textContent;
-        const blob = new Blob([yamlContent], { type: 'text/yaml' });
-        const url = URL.createObjectURL(blob);
-        
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${document.getElementById('profileName').value || 'alarm'}_profile.yaml`;
-        a.click();
-        
-        URL.revokeObjectURL(url);
-        document.getElementById('statusText').textContent = 'Config exported!';
-    }
-
-    analyzeRecording() {
-        const result = this.audioEngine.analyzeRecording();
-        
-        if (result.warnings && result.warnings.length > 0) {
-            console.warn('Analysis warnings:', result.warnings);
-        }
-        
-        if (result.proposedSegments && result.proposedSegments.length > 0) {
-            // Clear existing segments and load proposed ones
-            this.segments = [];
-            this.segmentIdCounter = 0;
-            
-            for (const seg of result.proposedSegments) {
-                this.addSegment(
-                    seg.type,
-                    seg.freqMin || 0,
-                    seg.freqMax || 0,
-                    seg.durationMin,
-                    seg.durationMax
-                );
-            }
-            
-            document.getElementById('statusText').textContent = 
-                `Auto-tuned! Extracted ${result.proposedSegments.length} segments from ${result.totalDuration.toFixed(1)}s audio`;
-            
-            // Visualize raw segments
-            this.visualizer.drawEvents(
-                result.rawSegments.map(s => ({
-                    type: s.type,
-                    timestamp: s.startTime,
-                    duration: s.duration,
-                    frequency: s.frequency || 0
-                })),
-                result.totalDuration
-            );
-        } else {
-            document.getElementById('statusText').textContent = 'No patterns detected. Try a longer recording.';
-        }
-    }
+    // Note: reanalyzeAudio already defined earlier in file
+    // Note: All subsequent methods (addDefaultSegments, addSegment, etc.) already defined earlier
 }
 
 // Initialize app when DOM is ready

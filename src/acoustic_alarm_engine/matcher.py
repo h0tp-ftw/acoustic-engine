@@ -40,30 +40,42 @@ class MatcherState:
 
 
 class SequenceMatcher:
-    """Matches incoming events against multiple alarm profiles.
+    """Matches incoming events against multiple alarm profiles using a state machine.
 
-    Maintains state for each profile and checks incoming events
-    against expected patterns.
+    This class maintains an independent tracking state for each monitored profile.
+    It receives audio events (like Tones) and sequentially verifies if they match
+    the expected segments (Tones/Silences) of an alarm pattern.
 
-    Key behavior: Tones that don't match ANY expected frequency range
-    in a profile are IGNORED (treated as transparent). This allows
-    the matcher to work in noisy environments where ambient sounds
-    would otherwise break the pattern matching.
+    Key Features:
+    - **Noise Immunity**: Tones that do not match ANY expected frequency range
+      across the profile are ignored. This effectively makes the matcher "deaf"
+      to background noise like speech or music, provided they don't overlap
+      with alarm frequencies.
+    - **Parallel Matching**: Can track multiple optional profiles simultaneously.
+    - **Resilience**: Handles missing or imperfect events up to a certain tolerance.
     """
 
     def __init__(self, profiles: List[AlarmProfile]):
-        """Initialize with list of profiles to match against."""
+        """Initialize with list of profiles to match against.
+
+        Args:
+            profiles: List of AlarmProfile objects defining the patterns to detect.
+        """
         self.profiles = profiles
         self.states = {p.name: MatcherState(p) for p in profiles}
 
     def process(self, event: AudioEvent) -> List[PatternMatchEvent]:
-        """Process a new event and return any pattern matches.
+        """Process a new audio event and check for pattern matches.
+
+        This is the main entry point for the matcher. It updates the state
+        of every profile with the new event.
 
         Args:
-            event: An AudioEvent (usually ToneEvent)
+            event: An AudioEvent (usually a ToneEvent) detected by the Generator.
 
         Returns:
-            List of PatternMatchEvent for any completed matches
+            List of PatternMatchEvent objects for any profiles that completed
+            their full pattern match sequence with this event.
         """
         matches = []
 
@@ -77,7 +89,18 @@ class SequenceMatcher:
     def _update_profile(
         self, state: MatcherState, event: AudioEvent
     ) -> Optional[PatternMatchEvent]:
-        """Update matching state for a single profile."""
+        """Update matching state for a single profile.
+
+        Internal method that advances the state machine for a specific profile.
+
+        Args:
+            state: The tracking state for the profile.
+            event: The new audio event to evaluate.
+
+        Returns:
+            A PatternMatchEvent if the profile's confirmation cycles are complete,
+            otherwise None.
+        """
         p = state.profile
 
         if state.current_segment_index >= len(p.segments):

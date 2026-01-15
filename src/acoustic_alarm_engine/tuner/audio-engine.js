@@ -215,6 +215,25 @@ class AudioEngine {
         };
     }
 
+    /**
+     * Play an audio buffer directly (for synthetic audio playback)
+     * @param {AudioBuffer} buffer - The buffer to play
+     * @returns {Object} Playback info
+     */
+    playBuffer(buffer) {
+        if (!buffer || !this.audioContext) return null;
+        
+        const source = this.audioContext.createBufferSource();
+        source.buffer = buffer;
+        source.connect(this.audioContext.destination);
+        source.start();
+        
+        return {
+            duration: buffer.duration,
+            source: source
+        };
+    }
+
     getAnalyserData() {
         // Use playback analyser if playing, otherwise use recording analyser
         const analyser = this.isPlaying ? this.playbackAnalyser : this.analyser;

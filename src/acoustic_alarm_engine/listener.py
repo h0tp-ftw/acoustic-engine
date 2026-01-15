@@ -1,10 +1,16 @@
-"""Audio listener component for capturing audio input."""
+"""Audio listener component for capturing audio input.
+
+This module handles the low-level details of interfacing with the audio hardware
+using PyAudio. It provides a clean, callback-based interface for receiving
+audio chunks, abstracting away the complexity of stream management.
+"""
 
 import logging
-from dataclasses import dataclass
 from typing import Callable, Optional
 
 import numpy as np
+
+from acoustic_alarm_engine.config import AudioSettings
 
 try:
     import pyaudio
@@ -16,35 +22,29 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class AudioConfig:
-    """Audio capture configuration.
-
-    Attributes:
-        sample_rate: Sample rate in Hz (default 44100)
-        chunk_size: Samples per chunk (default 4096)
-        channels: Number of audio channels (default 1 = mono)
-        device_index: Specific audio device index, or None for default
-    """
-
-    sample_rate: int = 44100
-    chunk_size: int = 4096
-    channels: int = 1
-    device_index: Optional[int] = None
+# For backward compatibility if needed, but AudioSettings is preferred
+AudioConfig = AudioSettings
 
 
 class AudioListener:
     """Handles audio capture from microphone input.
 
-    Provides a callback-based interface for receiving audio chunks.
+    Provides a threaded, callback-based interface for continuously receiving
+    audio chunks from the microphone. It manages the PyAudio stream lifecycle,
+    device selection, and error handling.
     """
 
-    def __init__(self, config: AudioConfig, on_audio_chunk: Callable[[np.ndarray], None]):
+    def __init__(self, config: AudioSettings, on_audio_chunk: Callable[[np.ndarray], None]):
         """Initialize the audio listener.
 
         Args:
-            config: Audio configuration settings
-            on_audio_chunk: Callback function to receive audio chunks
+            config: AudioSettings object containing sample rate, chunk size, etc.
+            on_audio_chunk: Callback function that will be called for every
+                           captured audio chunk. The callback receives a single
+                           argument: a numpy array of int16 audio samples.
+
+        Raises:
+            ImportError: If PyAudio is not installed.
         """
         if not HAS_PYAUDIO:
             raise ImportError(
@@ -60,8 +60,11 @@ class AudioListener:
     def setup(self) -> bool:
         """Initialize PyAudio and open the audio stream.
 
+        This method attempts to initialize the audio subsystem and open an input
+        stream with the configured settings. It verifies the device index if provided.
+
         Returns:
-            True if successful, False otherwise
+            True if the stream was successfully opened, False otherwise.
         """
         try:
             logger.info("Initializing PyAudio...")
@@ -92,7 +95,14 @@ class AudioListener:
             return False
 
     def _validate_device(self, device_index: int) -> bool:
-        """Validate that a device index is usable for input."""
+        """Validate that a device index is usable for input.
+
+        Args:
+            device_index: The PyAudio device index to check.
+
+        Returns:
+            True if the device exists and has input channels, False otherwise.
+        """
         try:
             dev_info = self._pyaudio.get_device_info_by_host_api_device_index(0, device_index)
             if dev_info.get("maxInputChannels", 0) == 0:
@@ -107,7 +117,11 @@ class AudioListener:
             return False
 
     def _list_devices(self) -> None:
-        """List all available audio input devices."""
+        """List all available audio input devices to the log.
+
+        This helper provides diagnostic information about available audio hardware,
+        useful for troubleshooting device index issues.
+        """
         logger.info("-" * 40)
         logger.info("AVAILABLE AUDIO DEVICES:")
         try:
@@ -133,7 +147,12 @@ class AudioListener:
         logger.info("-" * 40)
 
     def start(self) -> None:
-        """Start the audio capture loop (blocking)."""
+        """Start the audio capture loop (blocking).
+
+        This method enters a loop that continuously reads from the audio stream
+        and relays data to the callback. It blocks the calling thread until
+        stop() is called or an error occurs.
+        """
         if not self._stream:
             logger.error("Audio stream not initialized. Call setup() first.")
             return
@@ -143,6 +162,7 @@ class AudioListener:
 
         try:
             while self._running:
+                # exception_on_overflow=False prevents crashes on transient buffer overruns
                 audio_data = self._stream.read(self.config.chunk_size, exception_on_overflow=False)
                 audio_chunk = np.frombuffer(audio_data, dtype=np.int16)
                 self.on_audio_chunk(audio_chunk)
@@ -152,12 +172,19 @@ class AudioListener:
                 logger.error(f"Error in audio capture loop: {e}", exc_info=True)
 
     def stop(self) -> None:
-        """Stop the audio capture loop."""
+        """Stop the audio capture loop.
+
+        This sets a flag that will cause the start() loop to exit cleanly.
+        """
         self._running = False
         logger.info("🛑 Listener stopping...")
 
     def cleanup(self) -> None:
-        """Release audio resources."""
+        """Release audio resources.
+
+        Closes the audio stream and terminates the PyAudio instance.
+        Should be called when the listener is no longer needed.
+        """
         logger.info("Cleaning up audio resources...")
 
         if self._stream:

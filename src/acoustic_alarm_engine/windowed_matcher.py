@@ -29,21 +29,24 @@ class WindowConfig:
 class WindowedMatcher:
     """Pattern matcher using sliding window analysis.
 
-    Instead of processing events sequentially and maintaining state,
-    this matcher:
-    1. Buffers all events
-    2. Periodically evaluates sliding windows
-    3. Tries to find patterns within each window
+    This matcher is designed to be robust against noise and missing events.
+    Instead of processing events sequentially and strictly maintaining a state machine,
+    it buffers events over a period of time and periodically scans the buffer (the "window")
+    to see if there is a sequence of events that matches an alarm profile.
 
-    This is much more robust to noise because leading/trailing noise
-    events are simply ignored when searching for the pattern.
+    Features:
+    - **Noise Robustness**: Leading or trailing noise events in the window are ignored;
+      the matcher looks for the *best fit* sub-sequence within the window.
+    - **Sliding Window**: Continuously re-evaluates the recent history.
+    - **Frequency Filtering**: Only considers events that match the profile's
+      target frequencies, ignoring out-of-band noise.
     """
 
     def __init__(self, profiles: List[AlarmProfile]):
-        """Initialize with profiles to match against.
+        """Initialize the windowed matcher.
 
         Args:
-            profiles: List of AlarmProfile patterns to detect
+            profiles: List of AlarmProfile patterns to detect.
         """
         self.profiles = profiles
         self.event_buffer = EventBuffer(max_duration=60.0)  # Keep 60s of history
@@ -67,10 +70,16 @@ class WindowedMatcher:
             )
 
     def _compute_config(self, profile: AlarmProfile) -> WindowConfig:
-        """Compute window configuration for a profile.
+        """Compute window configuration from profile parameters.
 
-        If profile specifies window_duration, use it.
-        Otherwise, auto-calculate based on segment durations.
+        Calculates the optimal window size and evaluation frequency based on the
+        profile's segments and confirmation cycles.
+
+        Args:
+            profile: The AlarmProfile to configure for.
+
+        Returns:
+            Computed WindowConfig.
         """
         # Calculate expected pattern duration (sum of all segment mean durations)
         pattern_duration = 0.0
@@ -100,26 +109,25 @@ class WindowedMatcher:
         )
 
     def add_event(self, event: ToneEvent) -> None:
-        """Add a new event to the buffer.
+        """Add a new detected event to the circular buffer.
 
         Args:
-            event: ToneEvent to buffer
+            event: ToneEvent object from the EventGenerator.
         """
         self.event_buffer.add(event)
         logger.debug(f"Buffered event: {event.frequency:.0f}Hz at t={event.timestamp:.2f}s")
 
     def evaluate(self, current_time: float) -> List[PatternMatchEvent]:
-        """Evaluate all profiles and return any matches.
+        """Evaluate all profiles against the current event buffer.
 
-        This should be called periodically (e.g., after each audio chunk).
-        It will only actually evaluate profiles when their eval_frequency
-        interval has elapsed.
+        This checks if enough time has passed since the last evaluation for each
+        profile, and if so, scans the window for matches.
 
         Args:
-            current_time: Current time in seconds
+            current_time: Current simulation/system time in seconds.
 
         Returns:
-            List of PatternMatchEvent for any detected patterns
+            List of PatternMatchEvent objects for any newly confirmed detections.
         """
         matches = []
 
@@ -152,20 +160,23 @@ class WindowedMatcher:
         profile: AlarmProfile,
         current_time: float,
     ) -> Optional[PatternMatchEvent]:
-        """Check if events in window match the profile pattern.
+        """Check if events in the time window match the profile pattern.
 
-        The algorithm:
-        1. Filter events to only those matching profile's frequency ranges
-        2. Find sequences of events that match the expected tone-silence pattern
-        3. If enough cycles are found, return a match
+        The matching algorithm:
+        1. Filters events to only those matching the profile's frequency ranges.
+        2. Sorts events by time.
+        3. Iterates through the events, treating each one as a potential "start"
+           of the pattern.
+        4. For each start candidate, counts how many consecutive valid cycles follow.
+        5. If the cycle count meets the profile's `confirmation_cycles`, a match is returned.
 
         Args:
-            events: Events in the current window
-            profile: Profile to match against
-            current_time: Current time for the match event
+            events: List of ToneEvents falling within the analysis window.
+            profile: The AlarmProfile to match against.
+            current_time: The current timestamp (used for the match event).
 
         Returns:
-            PatternMatchEvent if pattern found, None otherwise
+            PatternMatchEvent if a sufficient pattern is found, otherwise None.
         """
         config = self.configs[profile.name]
 

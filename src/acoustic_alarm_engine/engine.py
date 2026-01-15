@@ -1,18 +1,28 @@
-"""Main Engine class - orchestrates the detection pipeline."""
+"""Main Engine class - orchestrates the detection pipeline.
+
+This module contains the core `Engine` class which ties together all components
+of the acoustic alarm detection system: audio capture, signal processing,
+event generation, and pattern matching.
+"""
 
 import logging
 import threading
 import time
-from typing import Callable, List, Optional
+from pathlib import Path
+from typing import Callable, List, Optional, Union
 
 import numpy as np
 
-from acoustic_alarm_engine.config import compute_finest_resolution
+from acoustic_alarm_engine.config import (
+    AudioSettings,
+    EngineConfig,
+    GlobalConfig,
+)
 from acoustic_alarm_engine.dsp import SpectralMonitor
 from acoustic_alarm_engine.events import PatternMatchEvent
 from acoustic_alarm_engine.filter import FrequencyFilter
 from acoustic_alarm_engine.generator import EventGenerator
-from acoustic_alarm_engine.listener import AudioConfig, AudioListener
+from acoustic_alarm_engine.listener import AudioListener
 from acoustic_alarm_engine.models import AlarmProfile
 from acoustic_alarm_engine.windowed_matcher import WindowedMatcher
 
@@ -25,55 +35,61 @@ class Engine:
     Orchestrates the full detection pipeline:
     Audio Input → DSP/FFT → Frequency Filter → Event Generation → Pattern Matching → Callbacks
 
+    The engine can be configured manually or loaded from a configuration file.
+
     Example:
-        >>> from acoustic_alarm_engine import Engine, AudioConfig
-        >>> from acoustic_alarm_engine.profiles import load_profiles_from_yaml
-        >>>
-        >>> profiles = load_profiles_from_yaml("smoke_alarm.yaml")
-        >>> engine = Engine(
-        ...     profiles=profiles,
-        ...     audio_config=AudioConfig(),
-        ...     on_detection=lambda name: print(f"ALARM: {name}")
-        ... )
+        >>> from acoustic_alarm_engine import Engine
+        >>> engine = Engine.from_yaml("config.yaml")
         >>> engine.start()  # Blocking
     """
 
     def __init__(
         self,
         profiles: List[AlarmProfile],
-        audio_config: Optional[AudioConfig] = None,
+        audio_config: Optional[AudioSettings] = None,
+        engine_config: Optional[EngineConfig] = None,
         on_detection: Optional[Callable[[str], None]] = None,
         on_match: Optional[Callable[[PatternMatchEvent], None]] = None,
     ):
         """Initialize the detection engine.
 
         Args:
-            profiles: List of AlarmProfile patterns to detect
-            audio_config: Audio capture settings (uses defaults if None)
-            on_detection: Simple callback with just profile name (str)
-            on_match: Full callback with PatternMatchEvent object
+            profiles: List of AlarmProfile patterns to detect.
+            audio_config: Audio capture settings (uses defaults if None).
+            engine_config: Engine pipeline settings (uses defaults/computed if None).
+            on_detection: Simple callback invoked with just the profile name (str)
+                          when an alarm is confirmed.
+            on_match: Detailed callback invoked with the full PatternMatchEvent object
+                      when an alarm is confirmed.
         """
         self.profiles = profiles
-        self.audio_config = audio_config or AudioConfig()
+        self.audio_config = audio_config or AudioSettings()
         self.on_detection = on_detection
         self.on_match = on_match
 
-        # State
+        # Use provided engine config or compute optimal settings from profiles
+        if engine_config:
+            self.engine_config = engine_config
+        else:
+            self.engine_config = EngineConfig.from_profiles(
+                profiles,
+                sample_rate=self.audio_config.sample_rate,
+                chunk_size=self.audio_config.chunk_size,
+            )
+
+        # State management
         self._alarm_active = False
         self._current_time = 0.0
         self._running = False
 
-        # Calculate the finest resolution needed across all profiles
-        min_tone_dur, dropout_tol = self._compute_finest_resolution()
-
-        # Pipeline components
-        self._dsp = SpectralMonitor(self.audio_config.sample_rate, self.audio_config.chunk_size)
+        # Pipeline components initialization
+        self._dsp = SpectralMonitor(self.engine_config.sample_rate, self.engine_config.chunk_size)
         self._freq_filter = FrequencyFilter(self.profiles)
         self._generator = EventGenerator(
-            self.audio_config.sample_rate,
-            self.audio_config.chunk_size,
-            min_tone_duration=min_tone_dur,
-            dropout_tolerance=dropout_tol,
+            self.engine_config.sample_rate,
+            self.engine_config.chunk_size,
+            min_tone_duration=self.engine_config.min_tone_duration,
+            dropout_tolerance=self.engine_config.dropout_tolerance,
         )
         self._matcher = WindowedMatcher(self.profiles)
 
@@ -83,36 +99,72 @@ class Engine:
         logger.info(
             f"Engine initialized with {len(profiles)} profile(s): {[p.name for p in profiles]}"
         )
+        logger.debug(f"Engine Config: {self.engine_config}")
+
+    @classmethod
+    def from_config(cls, config: GlobalConfig) -> "Engine":
+        """Create an Engine instance from a GlobalConfig object.
+
+        Args:
+            config: The GlobalConfig object containing all settings.
+
+        Returns:
+            Configured Engine instance.
+        """
+        # Configure logging from system config if needed
+        # (Usually logging is configured at app startup, but we can respect log level here)
+        logging.getLogger().setLevel(config.system.log_level)
+
+        return cls(
+            profiles=config.profiles,
+            audio_config=config.audio,
+            engine_config=config.engine,
+        )
+
+    @classmethod
+    def from_yaml(cls, path: Union[str, Path]) -> "Engine":
+        """Create an Engine instance directly from a YAML configuration file.
+
+        Args:
+            path: Path to the YAML configuration file.
+
+        Returns:
+            Configured Engine instance.
+        """
+        config = GlobalConfig.load(path)
+        return cls.from_config(config)
 
     def process_chunk(self, audio_chunk: np.ndarray) -> bool:
         """Process a single audio chunk through the pipeline.
 
-        This can be called directly if you're handling audio capture yourself.
+        This method drives the entire detection logic for one block of audio.
+        It can be called directly if you are manually handling audio capture
+        instead of using the built-in listener.
 
         Args:
-            audio_chunk: Raw audio samples (int16, mono)
+            audio_chunk: Raw audio samples (int16, mono).
 
         Returns:
-            True if an alarm was detected in this chunk
+            True if an alarm was detected and triggered in this specific chunk.
         """
-        # Time keeping
-        chunk_duration = self.audio_config.chunk_size / self.audio_config.sample_rate
+        # Time keeping based on configured chunk size (which dictates temporal resolution)
+        chunk_duration = self.engine_config.chunk_size / self.engine_config.sample_rate
         self._current_time += chunk_duration
 
-        # DSP Analysis
+        # 1. DSP Analysis: Convert time-domain audio to frequency peaks
         peaks = self._dsp.process(audio_chunk)
 
-        # Frequency Filter - remove irrelevant frequencies early
+        # 2. Frequency Filter: Remove irrelevant frequencies early for performance
         filtered_peaks = self._freq_filter.filter_peaks(peaks)
 
-        # Event Generation
+        # 3. Event Generation: distinct tones from continuous spectral data
         events = self._generator.process(filtered_peaks, self._current_time)
 
-        # Buffer events for windowed analysis
+        # 4. Pattern Matching: Buffer events and analyze windows
         for event in events:
             self._matcher.add_event(event)
 
-        # Evaluate windows periodically
+        # Evaluate windows
         detected = False
         matches = self._matcher.evaluate(self._current_time)
         for match in matches:
@@ -121,20 +173,14 @@ class Engine:
 
         return detected
 
-    def _compute_finest_resolution(self) -> tuple:
-        """Compute the finest resolution needed across all profiles.
-
-        Uses the centralized logic from config.py.
-
-        Returns:
-            (min_tone_duration, dropout_tolerance) tuple
-        """
-        min_tone, dropout = compute_finest_resolution(self.profiles)
-        logger.info(f"Engine resolution: min_tone={min_tone}s, dropout={dropout}s")
-        return min_tone, dropout
-
     def _trigger_alarm(self, match: PatternMatchEvent) -> None:
-        """Handle a pattern match detection."""
+        """Handle a confirmed pattern match detection.
+
+        Logs the alarm, triggers callbacks, and manages the alarm state reset.
+
+        Args:
+            match: The PatternMatchEvent detailing the detection.
+        """
         logger.info(f"MATCH: {match.profile_name} (Cycle {match.cycle_count})")
 
         if not self._alarm_active:
@@ -158,9 +204,9 @@ class Engine:
                 except Exception as e:
                     logger.error(f"Error in on_match callback: {e}")
 
-            # Auto-reset after timeout
+            # Auto-reset after timeout to allow new detections
             def clear():
-                time.sleep(10)
+                time.sleep(10)  # Hardcoded cooldown for now
                 if self._alarm_active:
                     logger.info("Auto-clearing alarm state.")
                     self._alarm_active = False
@@ -168,14 +214,19 @@ class Engine:
             threading.Thread(target=clear, daemon=True).start()
 
     def start(self) -> None:
-        """Start the engine with audio capture (blocking).
+        """Start the engine with built-in audio capture (blocking).
 
-        This will block the current thread and capture audio until stop() is called.
+        This initializes the AudioListener and blocks the current thread,
+        processing audio until stop() is called or a KeyboardInterrupt occurs.
+
+        Raises:
+            RuntimeError: If audio setup fails.
         """
         self._listener = AudioListener(self.audio_config, self.process_chunk)
 
         if not self._listener.setup():
             logger.error("Failed to setup audio listener")
+            # In a real app, might want to raise an exception here
             return
 
         self._running = True
@@ -190,15 +241,20 @@ class Engine:
     def start_async(self) -> threading.Thread:
         """Start the engine in a background thread.
 
+        Ideal for integrating the engine into a larger application (e.g., GUI or web server).
+
         Returns:
-            The background thread (already started)
+            The background thread object (already started).
         """
         thread = threading.Thread(target=self.start, daemon=True)
         thread.start()
         return thread
 
     def stop(self) -> None:
-        """Stop the engine and release resources."""
+        """Stop the engine and release audio resources.
+
+        This signals the processing loop to exit and cleans up the PyAudio stream.
+        """
         self._running = False
 
         if self._listener:
@@ -215,5 +271,5 @@ class Engine:
 
     @property
     def alarm_active(self) -> bool:
-        """Check if an alarm is currently active."""
+        """Check if an alarm is currently active (cooldown period)."""
         return self._alarm_active

@@ -1,4 +1,10 @@
-"""YAML configuration loader for AlarmProfiles."""
+"""YAML configuration loader for AlarmProfiles.
+
+This module provides functionality to load and save `AlarmProfile` objects
+from YAML files. It supports various YAML structures including single profiles,
+lists of profiles, and bundled profiles. It handles the parsing of segments,
+frequency ranges, and resolution settings.
+"""
 
 import logging
 from pathlib import Path
@@ -13,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 def load_profile_from_yaml(path: Union[str, Path]) -> AlarmProfile:
     """Load a single AlarmProfile from a YAML file.
+
+    This function expects the YAML file to describe exactly one profile.
 
     Example YAML format:
     ```yaml
@@ -31,6 +39,16 @@ def load_profile_from_yaml(path: Union[str, Path]) -> AlarmProfile:
           min: 0.1
           max: 0.3
     ```
+
+    Args:
+        path: Path to the YAML file.
+
+    Returns:
+        The valid AlarmProfile object parsed from the file.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        ValueError: If the YAML structure is invalid.
     """
     with open(path, "r") as f:
         data = yaml.safe_load(f)
@@ -41,10 +59,17 @@ def load_profile_from_yaml(path: Union[str, Path]) -> AlarmProfile:
 def load_profiles_from_yaml(path: Union[str, Path]) -> List[AlarmProfile]:
     """Load multiple AlarmProfiles from a YAML file.
 
-    Supports three formats:
-    1. Single profile (dict with 'name', 'segments')
-    2. List of profiles (list of dicts)
-    3. Bundled profiles (dict with 'profiles' key containing list)
+    This function is flexible and supports three different top-level structures
+    in the YAML file:
+    1. A single profile dictionary (returns a list with one element).
+    2. A list of profile dictionaries.
+    3. A "bundled" dictionary with a 'profiles' key containing a list.
+
+    Args:
+        path: Path to the YAML file.
+
+    Returns:
+        A list of loaded AlarmProfile objects.
     """
     with open(path, "r") as f:
         data = yaml.safe_load(f)
@@ -57,12 +82,22 @@ def load_profiles_from_yaml(path: Union[str, Path]) -> List[AlarmProfile]:
     if isinstance(data, list):
         return [_parse_profile(p) for p in data]
 
-    # Format 1: Single profile
+    # Format 1: Single profile (fallback)
     return [_parse_profile(data)]
 
 
 def _parse_profile(data: dict) -> AlarmProfile:
-    """Parse a profile dictionary into an AlarmProfile object."""
+    """Parse a raw dictionary into an AlarmProfile object.
+
+    Handles defaults, type conversion, and structure validation for
+    segments, frequency ranges, and resolution settings.
+
+    Args:
+        data: Use dictionary containing profile definition.
+
+    Returns:
+        A validated AlarmProfile object.
+    """
     segments = []
 
     for seg_data in data.get("segments", []):
@@ -123,7 +158,14 @@ def _parse_profile(data: dict) -> AlarmProfile:
 
 
 def save_profile_to_yaml(profile: AlarmProfile, path: Union[str, Path]) -> None:
-    """Save an AlarmProfile to a YAML file."""
+    """Save an AlarmProfile to a YAML file.
+
+    Serializes the profile object back to a YAML representation.
+
+    Args:
+        profile: The AlarmProfile object to save.
+        path: Destination file path.
+    """
     data = {
         "name": profile.name,
         "confirmation_cycles": profile.confirmation_cycles,
