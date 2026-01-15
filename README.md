@@ -1,7 +1,7 @@
 # 🔊 Acoustic Alarm Engine
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
 
 A robust, noise-resilient Python library for real-time acoustic pattern detection. Detect smoke alarms, CO detectors, appliance beeps, and other repetitive audio patterns with high accuracy.
 
@@ -262,4 +262,9 @@ python test_windowed.py
 
 ## 📄 License
 
-MIT License - See [LICENSE](LICENSE) for details.
+This project is licensed under the **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)**.
+
+- **Attribution**: You must give appropriate credit.
+- **Non-Commercial**: You may not use the material for commercial purposes.
+
+See [LICENSE](LICENSE) for the full text.
