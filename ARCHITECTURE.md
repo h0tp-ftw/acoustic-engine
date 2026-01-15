@@ -1,153 +1,176 @@
 # Acoustic Alarm Engine Architecture
 
-This document details the architecture, detection pipeline, and key algorithms of the Acoustic Alarm Engine.
+The Acoustic Alarm Engine is a standalone library designed to detect repetitive acoustic patterns (such as smoke alarms, CO detectors, and appliance beeps) in real-time.
 
-## 🏗 System Architecture
+It utilizes a robust **windowed analysis** approach, making it highly resilient to background noise, missing events, and temporary audio dropouts.
 
-The engine transforms raw audio samples into high-level alarm events through a multi-stage pipeline:
+## 🏗 High-Level Architecture
+
+The system operates as a 4-stage processing pipeline:
 
 ```mermaid
 graph LR
-    A[Audio Input] --> B[DSP / FFT]
-    B --> C[Frequency Filter]
-    C --> D[Event Generator]
-    D --> E[Event Buffer]
-    E --> F[Windowed Matcher]
-    F --> G[Callbacks]
+    A[Input: Listener] -->|Raw Audio| B[Processing: DSP & Filter]
+    B -->|Filtered Peaks| C[Analysis: Generator & Matcher]
+    C -->|Pattern Events| D[Output: Callbacks]
+```
+
+These stages map directly to the package directory structure:
+
+- **Input (`input/`)**: Hardware interface and audio capture.
+- **Processing (`processing/`)**: Signal processing and frequency filtering.
+- **Analysis (`analysis/`)**: Event abstraction and pattern matching logic.
+
+---
+
+## 📂 Directory Layout
+
+The codebase is organized into functional modules:
+
+```text
+src/acoustic_alarm_engine/
+├── engine.py                 # Main orchestrator (Facade)
+├── config.py                 # Configuration and factory methods
+├── models.py                 # Core data structures (AlarmProfile, Segment)
+├── events.py                 # Event definitions (ToneEvent, PatternMatchEvent)
+│
+├── input/
+│   └── listener.py           # Audio capture (PyAudio) implementation
+│
+├── processing/
+│   ├── dsp.py                # FFT and SpectralMonitor logic
+│   └── filter.py             # FrequencyFilter (The "Screener")
+│
+└── analysis/
+    ├── generator.py          # EventGenerator (Peaks -> Tones)
+    ├── event_buffer.py       # Circular buffer for event history
+    ├── windowed_matcher.py   # Windowed detection algorithm
+    └── matcher.py            # (Legacy) State machine matcher
 ```
 
 ---
 
-## Pipeline Components
+## ⚙️ Detailed Pipeline Stages
 
-### 1. Audio Input (Listener)
+### 1. Input Stage (`input/listener.py`)
 
-- Captures raw audio via ALSA/PulseAudio (Linux) or PyAudio
-- **Sample Rate:** Default 44100Hz (configurable)
-- **Chunk Size:** Default 4096 samples (~93ms at 44.1kHz)
+- **Role**: Handles the interface with audio hardware.
+- **Component**: `AudioListener`
+- **Implementation**:
+  - Runs in a **separate thread** to prevent audio dropouts during heavy processing.
+  - Uses `PyAudio` (PortAudio wrapper) to capture 16-bit mono PCM audio.
+  - Buffers incoming audio into fixed chunks (default: 4096 samples).
+  - Invokes a callback for every captured chunk.
 
-### 2. DSP & Spectral Analysis
+### 2. Processing Stage (`processing/`)
 
-- Converts time-domain audio to frequency-domain using **FFT**
-- **Peak Detection:** Identifies dominant frequencies in each chunk
-- **Noise Floor Estimation:** Dynamic percentile-based noise profiling
+This stage transforms time-domain audio into frequency domain data and filters out noise.
 
-### 3. Frequency Filter
+#### A. Digital Signal Processing (`processing/dsp.py`)
 
-- **Pre-filtering:** Discards spectral peaks not matching any loaded alarm profile
-- Drastically reduces downstream processing by ignoring irrelevant sounds (music, speech, etc.)
+- **Component**: `SpectralMonitor`
+- **Function**:
+  - Applies a Hanning window to the audio chunk.
+  - Performs a Real Fast Fourier Transform (rFFT).
+  - Detects **spectral peaks** based on magnitude and "sharpness" (prominence against neighbors).
+  - Returns a list of `Peak` objects (Frequency, Magnitude).
 
-### 4. Event Generator
+#### B. Frequency Filtering (`processing/filter.py`)
 
-Converts continuous spectral peaks into discrete `ToneEvent` objects:
+- **Component**: `FrequencyFilter`
+- **Role**: The "Screener".
+- **Function**:
+  - Pre-analyzes all loaded `AlarmProfile`s to find all relevant frequency ranges.
+  - **Discards any peak** that acts outside these known ranges.
+  - **Benefit**: This makes the engine "deaf" to speech, music, and background noise, significantly reducing downstream CPU usage.
 
-- **Tone Tracking:** Tracks active frequencies across multiple chunks
-- **Debouncing:** Ignores momentary dropouts (<150ms) for solid tone detection
-- **Safe Release:** Buffers events to enforce chronological ordering
+### 3. Analysis Stage (`analysis/`)
 
-### 5. Event Buffer
+This stage converts continuous data into discrete events and looks for patterns.
 
-Circular buffer storing recent events for windowed analysis:
+#### A. Event Generation (`analysis/generator.py`)
 
-- **Time-based Pruning:** Automatically removes events older than `max_duration` (default 60s)
-- **Window Queries:** Efficiently retrieves events within a time range
+- **Component**: `EventGenerator`
+- **Function**:
+  - Tracks persistence of spectral peaks across multiple chunks.
+  - Handles **debouncing**: Short noises (< min_duration) are ignored.
+  - Handles **dropouts**: Short gaps (< tolerance) in a tone are bridged, treating it as one continuous tone.
+  - Emits `ToneEvent` objects only when a tone has finished and is "safe" to release (chronological ordering guaranteed).
 
-### 6. Windowed Matcher
+#### B. Windowed Matching (`analysis/windowed_matcher.py`)
 
-**Core innovation for noise resilience.** Instead of sequential state-machine matching, uses sliding window analysis:
-
-```mermaid
-graph TD
-    subgraph "Every eval_frequency seconds"
-        A[Get window of events] --> B[Filter by profile frequencies]
-        B --> C[Try to find pattern from each starting point]
-        C --> D{Best cycles >= confirmation_cycles?}
-        D -->|Yes| E[Emit PatternMatchEvent]
-        D -->|No| F[Continue]
-    end
-```
-
-**Key benefits:**
-
-- **Noise before pattern:** Background beeps before the actual alarm don't break detection
-- **Noise after pattern:** Trailing noise is ignored
-- **Multiple evaluation:** Each pattern is evaluated multiple times as the window slides
+- **Component**: `WindowedMatcher`
+- **Function**: Replaces traditional state machines with sliding window analysis.
+  1.  **Buffer**: Stores all `ToneEvent`s in a circular buffer (e.g., last 30-60s).
+  2.  **Slide**: Periodically (every ~0.5s) looks back at the recent history.
+  3.  **Evaluate**:
+      - Extracts events relevant to a specific profile.
+      - Tries to find the "best fit" pattern starting from every potential event in the window.
+      - Ignores leading/trailing noise.
+  4.  **Confirm**: If the "best fit" sequence has enough cycles (e.g., 3 beeps + 3 pauses), it triggers a match.
 
 ---
 
-## 🧠 Key Algorithms
+## 💾 Core Data Models (`models.py` & `events.py`)
 
-### Windowed Pattern Matching
+### Events (`events.py`)
 
-1. For each profile, calculate `window_duration` (default: 1.5× pattern length × cycles)
-2. Every `eval_frequency` seconds (default: 0.5s), evaluate the window
-3. Filter events to those matching profile's frequency ranges
-4. Try to match the pattern starting from each event
-5. If `best_cycles >= confirmation_cycles`, emit a match
+Events represent points in time where something significant happened.
 
-### Auto-Configuration
+- **`ToneEvent`**:
 
-Window parameters are auto-calculated if not specified:
+  - `timestamp` (float): Start time in seconds.
+  - `duration` (float): Duration in seconds.
+  - `frequency` (float): The dominant frequency Hz.
+  - `confidence` (float): Signal strength indicator.
+
+- **`PatternMatchEvent`**:
+  - `profile_name` (str): Which alarm was detected.
+  - `timestamp` (float): Time of detection.
+  - `cycle_count` (int): How many pattern cycles were verified.
+
+### Profiles (`models.py`)
+
+Profiles define what the engine is looking for. They are typically loaded from YAML.
+
+- **`AlarmProfile`**:
+
+  - `name`: Unique ID (e.g., "smoke_alarm_t3").
+  - `segments`: A list of `Segment`s defining one cycle (e.g., Tone -> Silence -> Tone).
+  - `confirmation_cycles`: How many repetitions are needed (default 2 or 3).
+  - `window_duration`: (Auto-calculated) How far back to look in time.
+
+- **`Segment`**:
+  - `type`: "tone" or "silence".
+  - `frequency`: `Range(min, max)` in Hz.
+  - `duration`: `Range(min, max)` in seconds.
+
+---
+
+## 🧵 Threading Model
+
+1.  **Audio Thread**: `AudioListener` runs in its own thread, exclusively reading from the microphone and pushing chunks to a queue or callback. This ensures no audio data is lost.
+2.  **Processing Thread**: (Usually the Main Thread or a worker).
+    - `Engine.process_chunk()` is called for each chunk.
+    - It runs filter -> generator -> matcher sequentially.
+    - This is fast enough to run in real-time on standard hardware (Raspberry Pi 3+).
+3.  **Callback Execution**: Callbacks (`on_match`) are executed synchronously within the processing loop. For heavy operations, users should offload callback logic to a separate thread.
+
+---
+
+## 🔌 Integration Points
+
+The `Engine` class (`engine.py`) acts as the primary facade.
 
 ```python
-pattern_duration = sum(segment.duration.mean for segment in profile.segments)
-window_duration = pattern_duration * confirmation_cycles * 1.5
-eval_frequency = min(0.5, pattern_duration / 4)
+from acoustic_alarm_engine import Engine, GlobalConfig
+
+# 1. Load configuration
+config = GlobalConfig.load("config.yaml")
+
+# 2. Initialize Engine
+engine = Engine.from_config(config)
+
+# 3. Start (Blocking or Async)
+engine.start()
 ```
-
-### Resolution vs. Stability Trade-off
-
-| FFT Size     | Chunk Duration | Best For                                       |
-| ------------ | -------------- | ---------------------------------------------- |
-| 4096 samples | ~93ms          | Standard alarms (T3 smoke), noisy environments |
-| 2048 samples | ~46ms          | Faster patterns                                |
-| 1024 samples | ~23ms          | T4 CO alarms, rapid beeps                      |
-
----
-
-## ✅ Capabilities
-
-| Category               | Examples                                      | Status       |
-| ---------------------- | --------------------------------------------- | ------------ |
-| **Safety Alarms**      | Smoke (T3), CO (T4), evacuation sirens        | ✅ Excellent |
-| **Appliance Beeps**    | Microwave, washer, dryer, dishwasher          | ✅ Good      |
-| **Tonal Alerts**       | Specific frequency tones (e.g., 3kHz ± 100Hz) | ✅ Good      |
-| **Noisy Environments** | TV, conversation, traffic background          | ✅ Robust    |
-
-## ❌ Limitations
-
-| Type                    | Examples                         | Reason                           |
-| ----------------------- | -------------------------------- | -------------------------------- |
-| **Non-tonal sounds**    | Voice alerts, clicks, percussion | Engine detects pure tones only   |
-| **Polyphonic melodies** | Complex overlapping music        | Designed for sequential patterns |
-| **Sub-bass (<200Hz)**   | Very low rumbles                 | FFT resolution limits            |
-
----
-
-## 🛠 Configuration
-
-### Profile Parameters
-
-```yaml
-name: "AlarmName"
-segments: [...] # Tone/silence sequence
-confirmation_cycles: 2 # Cycles required before detection
-reset_timeout: 10.0 # Seconds before resetting (legacy)
-window_duration: null # Auto-calculated if null
-eval_frequency: 0.5 # Seconds between evaluations
-```
-
-### Generator Parameters (in code)
-
-| Parameter             | Default | Description                                 |
-| --------------------- | ------- | ------------------------------------------- |
-| `min_tone_duration`   | 0.1s    | Minimum duration to count as valid tone     |
-| `dropout_tolerance`   | 0.15s   | Maximum gap before tone is considered ended |
-| `frequency_tolerance` | 50Hz    | Frequency matching tolerance                |
-
-### Tuning Tips
-
-1. **Use the Tuner:** Always record and visualize the alarm first
-2. **Wide Frequency Tolerance:** Alarms drift. If tuner shows 3200Hz, use 3100-3300Hz
-3. **Generous Duration:** Sound reflects. A 0.5s beep often measures as 0.6s
-4. **Start with 2 cycles:** Use `confirmation_cycles: 2` to reduce false positives
