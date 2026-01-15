@@ -62,8 +62,19 @@ class SpectralMonitor:
         # FFT
         fft_data = np.abs(np.fft.rfft(windowed))
 
-        max_val = np.max(fft_data) if len(fft_data) > 0 else 0
-        if max_val == 0:
+        if len(fft_data) == 0:
+            return []
+
+        # -- Adaptive Noise Floor Calculation --
+        # We estimate the noise floor as the median of the spectrum
+        # effectively ignoring the few high-energy peaks of the alarm.
+        noise_floor = np.median(fft_data)
+        # We require peaks to be significantly above the noise floor
+        # or above the absolute minimum, whichever is higher.
+        dynamic_threshold = max(self.min_magnitude, noise_floor * 3.0)
+
+        max_val = np.max(fft_data)
+        if max_val < dynamic_threshold:
             return []
 
         # Peak finding
@@ -72,7 +83,7 @@ class SpectralMonitor:
         # Skip DC and Nyquist edge bins
         for i in range(2, len(fft_data) - 2):
             mag = fft_data[i]
-            if mag < self.min_magnitude:
+            if mag < dynamic_threshold:
                 continue
 
             # Check if local peak
@@ -85,7 +96,23 @@ class SpectralMonitor:
                     neighbors = 1e-6
 
                 if mag / neighbors > self.min_sharpness:
-                    freq = self.freq_bins[i]
+                    # -- Parabolic Interpolation --
+                    # Use neighbors to find the "true" fractional peak center
+                    # Formula: peak + 0.5 * (left - right) / (left - 2*center + right)
+                    alpha = fft_data[i - 1]
+                    beta = fft_data[i]
+                    gamma = fft_data[i + 1]
+
+                    denom = alpha - 2 * beta + gamma
+                    if denom == 0:
+                        delta = 0.0
+                    else:
+                        delta = 0.5 * (alpha - gamma) / denom
+
+                    # Calculate precise frequency
+                    true_bin = i + delta
+                    freq = true_bin * (self.sample_rate / self.chunk_size)
+
                     peaks.append(Peak(frequency=freq, magnitude=mag, bin_index=i))
 
         # Sort by magnitude descending, limit to top peaks
