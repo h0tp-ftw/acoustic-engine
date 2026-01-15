@@ -50,7 +50,7 @@ class AudioGenerator:
         if noise_level <= 0:
             return audio
 
-        noise = self.generate_noise(len(audio) / self.sample_rate, amplitude=noise_level)
+        noise = np.random.uniform(-noise_level, noise_level, len(audio))
         return audio + noise
 
     def create_wav_file(self, filename: str, audio: np.ndarray):
@@ -99,16 +99,21 @@ def generate_wrong_freq_t3(generator: AudioGenerator, frequency: float = 1500) -
     return generate_t3_pattern(generator, frequency=1500)
 
 
-def generate_wrong_timing_t3(generator: AudioGenerator, frequency: float = 3000) -> np.ndarray:
-    """Generates T3-like pattern but with WRONG timing."""
-    # Instead of 0.5s ON / 0.5s OFF
-    # We do 0.2s ON / 0.8s OFF (same cycle length, different duty cycle)
-    tone = generator.generate_tone(frequency, 0.2)
-    silence = generator.generate_silence(0.8)
-    long_silence = generator.generate_silence(1.5)
+def generate_t3_custom_timing(
+    generator: AudioGenerator,
+    frequency: float = 3000,
+    beep_dur: float = 0.5,
+    gap_dur: float = 0.5,
+    long_gap_dur: float = 1.5,
+) -> np.ndarray:
+    """Generates a T3 pattern with custom timing."""
+    tone = generator.generate_tone(frequency, beep_dur)
+    short_silence = generator.generate_silence(gap_dur)
+    long_silence = generator.generate_silence(long_gap_dur)
 
-    pattern = np.concatenate([tone, silence, tone, silence, tone, long_silence])
+    pattern = np.concatenate([tone, short_silence, tone, short_silence, tone, long_silence])
 
+    # Repeat pattern 3 times
     return np.concatenate([pattern, pattern, pattern])
 
 
@@ -227,7 +232,30 @@ def run_benchmark():
     scenarios = [
         ("Control: Valid T3", generate_t3_pattern, create_t3_profile, True),
         ("Negative: Wrong Freq (1500Hz)", generate_wrong_freq_t3, create_t3_profile, False),
-        ("Negative: Wrong Timing (0.2s)", generate_wrong_timing_t3, create_t3_profile, False),
+        (
+            "Negative: Too Short (0.2s)",
+            lambda g: generate_t3_custom_timing(g, beep_dur=0.2),
+            create_t3_profile,
+            False,
+        ),
+        (
+            "Negative: Too Short (0.3s)",
+            lambda g: generate_t3_custom_timing(g, beep_dur=0.3),
+            create_t3_profile,
+            False,
+        ),
+        (
+            "Negative: Too Long (1.0s)",
+            lambda g: generate_t3_custom_timing(g, beep_dur=1.0),
+            create_t3_profile,
+            False,
+        ),
+        (
+            "Negative: Wrong Gaps (2.0s)",
+            lambda g: generate_t3_custom_timing(g, gap_dur=2.0),
+            create_t3_profile,
+            False,
+        ),
         ("Negative: Pure Noise", lambda g: g.generate_noise(5.0), create_t3_profile, False),
     ]
 

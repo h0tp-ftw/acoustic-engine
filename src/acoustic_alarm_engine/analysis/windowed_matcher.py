@@ -1,18 +1,10 @@
-"""Windowed pattern matcher using sliding window analysis.
-
-This replaces the sequential SequenceMatcher with a more robust approach:
-1. Collect ALL relevant frequency hits as discrete events
-2. Periodically evaluate sliding windows of events
-3. Pattern matching looks for best fit within window, ignoring noise
-"""
-
 import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-from .event_buffer import EventBuffer
 from ..events import PatternMatchEvent, ToneEvent
 from ..models import AlarmProfile
+from .event_buffer import EventBuffer
 
 logger = logging.getLogger(__name__)
 
@@ -266,7 +258,6 @@ class WindowedMatcher:
         # Try to match complete cycles
         while event_idx < len(events):
             cycle_matched = True
-            current_cycle_event_idx = event_idx
 
             # Use a temporary index so we can backtrack if the cycle fails
             temp_idx = event_idx
@@ -290,8 +281,10 @@ class WindowedMatcher:
                     # 1. Check Frequency
                     freq_match = tone_seg.frequency and tone_seg.frequency.contains(event.frequency)
 
-                    # 2. Check Duration (flexible)
-                    dur_min = tone_seg.duration.min * 0.5
+                    # 2. Check Duration (flexible but not too loose)
+                    # Tightened from 0.75 to 0.8 to prevent false positives on signals that are too short.
+                    # e.g. 0.4s min * 0.8 = 0.32s threshold (rejects 0.3s)
+                    dur_min = tone_seg.duration.min * 0.8
                     dur_max = tone_seg.duration.max * 1.5
                     dur_match = dur_min <= event.duration <= dur_max
 
@@ -311,36 +304,15 @@ class WindowedMatcher:
                 # If we found the tone, we need to validate the gap to the NEXT tone (if applicable)
                 if seg_idx < len(tone_segments) - 1:
                     # We are at 'event' (at temp_idx).
-                    # We need to find the next valid event start.
-                    # But wait, the inner loop above increments temp_idx to the MATCHED event.
-
-                    # So current event is events[temp_idx].
-                    current_event_end = events[temp_idx].timestamp + events[temp_idx].duration
-
                     # The next iteration of the outer loop will search for the next tone.
-                    # But we should verify the silence gap HERE to be strict about timing.
-                    # However, since we are "skipping noise", the next event in the buffer
-                    # might NOT be the next tone yet (it could be more noise).
-                    # So strictly checking the gap to events[temp_idx + 1] is risky if
-                    # events[temp_idx + 1] is noise.
-
-                    # Strategy: We defer the gap check to the finding of the NEXT tone.
+                    # We defer the gap check to the finding of the NEXT tone.
                     # But we need to ensure the gap *wasn't too long* or *too short*.
                     # Since we don't know where the next tone is yet, we can't fully validate
                     # the silence here easily without looking ahead.
 
                     # Simplified approach: We trust the "search" for the next tone to handle
-                    # the timing implicitly? No, we need to enforce the silence segment duration.
-
-                    # Look ahead for the next tone candidate?
-                    # This gets complex. For now, let's assume if we found the tones in order
-                    # with reasonable proximity, it's a match.
-                    # The WindowedMatcher is "best fit", so strict silence checking
-                    # generally happens naturally (if gap is too huge, next tone won't match window?)
-                    # Actually, let's enforce a loose gap check if possible.
-
+                    # the timing implicitly.
                     if seg_idx < len(silence_segments):
-                        silence_seg = silence_segments[seg_idx]
                         # We can't check the gap until we find the next tone.
                         # So we'll skip gap validation here and rely on the fact that
                         # if the next tone is too far away, it effectively breaks the "rhythm".
