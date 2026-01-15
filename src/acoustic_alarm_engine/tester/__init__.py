@@ -37,8 +37,8 @@ def main(
         duration: Duration for live mode in seconds
         high_resolution: Use smaller gap tolerance for fast patterns
     """
-    from acoustic_alarm_engine.tester.display import Display
-    from acoustic_alarm_engine.tester.runner import TestRunner
+    from .display import Display
+    from .runner import TestRunner
 
     # Enable debug logging if verbose mode
     if verbose:
@@ -46,8 +46,8 @@ def main(
 
         logging.basicConfig(level=logging.DEBUG, format="  %(message)s")
         # Enable debug logging for the matcher specifically
-        logging.getLogger("acoustic_alarm_engine.matcher").setLevel(logging.DEBUG)
-        logging.getLogger("acoustic_alarm_engine.generator").setLevel(logging.DEBUG)
+        logging.getLogger("acoustic_alarm_engine.analysis.windowed_matcher").setLevel(logging.DEBUG)
+        logging.getLogger("acoustic_alarm_engine.analysis.generator").setLevel(logging.DEBUG)
 
     display = Display(verbose=verbose)
 

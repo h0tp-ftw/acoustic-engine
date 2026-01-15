@@ -2,8 +2,8 @@
 
 from typing import List, Optional, Tuple
 
-from acoustic_alarm_engine.dsp import Peak
-from acoustic_alarm_engine.models import AlarmProfile
+from .dsp import Peak
+from ..models import AlarmProfile
 
 
 class FrequencyFilter:

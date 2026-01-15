@@ -36,7 +36,11 @@ Run the tester from command line:
 You can also use the tester programmatically:
 """
 
+import sys
 from pathlib import Path
+
+# Add src to path to allow running without installation
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from acoustic_alarm_engine.tester.display import Display
 from acoustic_alarm_engine.tester.runner import TestRunner

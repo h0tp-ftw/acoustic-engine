@@ -4,8 +4,8 @@ import logging
 from dataclasses import dataclass
 from typing import List
 
-from acoustic_alarm_engine.dsp import Peak
-from acoustic_alarm_engine.events import AudioEvent, ToneEvent
+from ..processing.dsp import Peak
+from ..events import AudioEvent, ToneEvent
 
 logger = logging.getLogger(__name__)
 

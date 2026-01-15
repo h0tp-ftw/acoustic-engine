@@ -8,6 +8,7 @@ This test:
 """
 
 import sys
+import pytest
 
 sys.path.insert(0, "src")
 
@@ -124,14 +125,14 @@ def test_clean_detection():
         print(f"✓ DETECTED: {len(matches)} match(es)")
         for m in matches:
             print(f"  - {m.profile_name} at {m.timestamp:.2f}s ({m.cycle_count} cycles)")
-        return True
     else:
         print("✗ NOT DETECTED")
-        return False
+
+    assert len(matches) > 0, "Failed to detect clean T3 pattern"
 
 
-def test_with_noise(noise_level: float, noise_type: str = "white"):
-    """Test detection with noise mixed in."""
+def check_with_noise(noise_level: float, noise_type: str = "white"):
+    """Helper to test detection with noise mixed in."""
     print(f"\nTest: Detection with {noise_level * 100:.0f}% {noise_type} noise")
     print("-" * 40)
 
@@ -187,28 +188,33 @@ def test_with_leading_noise():
 
     if matches:
         print(f"✓ DETECTED despite leading noise: {len(matches)} match(es)")
-        return True
     else:
         print("✗ NOT DETECTED - leading noise broke detection")
-        return False
+
+    assert len(matches) > 0, "Failed to detect pattern with leading noise"
 
 
-def test_noise_levels():
+@pytest.mark.parametrize("noise_level", [0.0, 0.1, 0.2, 0.3, 0.4, 0.5])
+def test_noise_levels(noise_level):
     """Test detection at various noise levels."""
     print("\n" + "=" * 60)
-    print("Test 3: Noise Resilience Across Levels")
+    print(f"Test 3: Noise Resilience ({noise_level * 100}%)")
     print("=" * 60)
 
-    results = {}
-    for level in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]:
-        results[level] = test_with_noise(level, "white")
+    result = check_with_noise(noise_level, "white")
 
-    print("\nSummary:")
-    for level, passed in results.items():
-        status = "✓ PASS" if passed else "✗ FAIL"
-        print(f"  {level * 100:3.0f}% noise: {status}")
+    # We expect 0.5 (50%) to potentially fail, so maybe warn or assertion should be lenient?
+    # But usually tests should be deterministic.
+    # The original script just printed results.
+    # We will assert True for detection up to 0.3 comfortably.
+    # For higher levels, maybe we shouldn't hard fail if it's probabilistic?
+    # For now, let's assume valid detection up to 0.3 is required.
 
-    return results
+    if noise_level <= 0.3:
+        assert result is True, f"Detection failed at {noise_level} noise level"
+    else:
+        if not result:
+            pytest.xfail(f"Detection failed at high noise level {noise_level}")
 
 
 def main():
@@ -217,36 +223,36 @@ def main():
     print("=" * 60)
     print()
 
-    results = {}
+    # Manual run wrapper
+    try:
+        test_clean_detection()
+        print("Clean detection passed")
+    except AssertionError:
+        print("Clean detection failed")
+        return 1
 
-    # Test 1: Clean detection
-    results["clean"] = test_clean_detection()
+    try:
+        test_with_leading_noise()
+        print("Leading noise detection passed")
+    except AssertionError:
+        print("Leading noise detection failed")
+        return 1
 
-    # Test 2: Leading noise (the core problem we're solving)
-    results["leading_noise"] = test_with_leading_noise()
+    # Test noise levels
+    failures = []
+    for level in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]:
+        passed = check_with_noise(level, "white")
+        status = "✓ PASS" if passed else "✗ FAIL"
+        print(f"  {level * 100:3.0f}% noise: {status}")
+        if level <= 0.3 and not passed:
+            failures.append(level)
 
-    # Test 3: Various noise levels
-    noise_results = test_noise_levels()
-    results["noise_0.3"] = noise_results.get(0.3, False)
+    if failures:
+        print(f"FAIL: Critical noise levels failed: {failures}")
+        return 1
 
-    # Summary
-    print("\n" + "=" * 60)
-    print("FINAL RESULTS")
-    print("=" * 60)
-
-    all_critical_passed = results["clean"] and results["leading_noise"]
-
-    if all_critical_passed:
-        print("✓ All critical tests PASSED!")
-        print("  - Clean detection works")
-        print("  - Leading noise doesn't break detection (CORE FIX)")
-    else:
-        print("✗ Some critical tests FAILED")
-
-    if results.get("noise_0.3"):
-        print("  - Detection works with 30% noise")
-
-    return 0 if all_critical_passed else 1
+    print("\nSUCCESS: All critical tests passed.")
+    return 0
 
 
 if __name__ == "__main__":

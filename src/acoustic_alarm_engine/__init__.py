@@ -16,18 +16,18 @@ __version__ = "1.0.0"
 __author__ = "Your Name"
 
 # Core exports
-from acoustic_alarm_engine.config import EngineConfig, compute_finest_resolution
-from acoustic_alarm_engine.engine import Engine
-from acoustic_alarm_engine.event_buffer import EventBuffer
-from acoustic_alarm_engine.filter import FrequencyFilter
-from acoustic_alarm_engine.listener import AudioConfig, AudioListener
-from acoustic_alarm_engine.models import AlarmProfile, Range, ResolutionConfig, Segment
-from acoustic_alarm_engine.profiles import (
+from .config import EngineConfig, compute_finest_resolution
+from .engine import Engine
+from .analysis.event_buffer import EventBuffer
+from .processing.filter import FrequencyFilter
+from .input.listener import AudioConfig, AudioListener
+from .models import AlarmProfile, Range, ResolutionConfig, Segment
+from .profiles import (
     load_profile_from_yaml,
     load_profiles_from_yaml,
     save_profile_to_yaml,
 )
-from acoustic_alarm_engine.windowed_matcher import WindowedMatcher
+from .analysis.windowed_matcher import WindowedMatcher
 
 __all__ = [
     # Version

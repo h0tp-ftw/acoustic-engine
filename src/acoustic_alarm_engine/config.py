@@ -14,8 +14,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml
 
-from acoustic_alarm_engine.models import AlarmProfile, ResolutionConfig
-from acoustic_alarm_engine.profiles import _parse_profile, load_profiles_from_yaml
+from .models import AlarmProfile, ResolutionConfig
+from .profiles import _parse_profile, load_profiles_from_yaml
 
 logger = logging.getLogger(__name__)
 

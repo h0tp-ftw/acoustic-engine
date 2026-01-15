@@ -13,18 +13,18 @@ from typing import Callable, List, Optional, Union
 
 import numpy as np
 
-from acoustic_alarm_engine.config import (
+from .config import (
     AudioSettings,
     EngineConfig,
     GlobalConfig,
 )
-from acoustic_alarm_engine.dsp import SpectralMonitor
-from acoustic_alarm_engine.events import PatternMatchEvent
-from acoustic_alarm_engine.filter import FrequencyFilter
-from acoustic_alarm_engine.generator import EventGenerator
-from acoustic_alarm_engine.listener import AudioListener
-from acoustic_alarm_engine.models import AlarmProfile
-from acoustic_alarm_engine.windowed_matcher import WindowedMatcher
+from .processing.dsp import SpectralMonitor
+from .events import PatternMatchEvent
+from .processing.filter import FrequencyFilter
+from .analysis.generator import EventGenerator
+from .input.listener import AudioListener
+from .models import AlarmProfile
+from .analysis.windowed_matcher import WindowedMatcher
 
 logger = logging.getLogger(__name__)
 

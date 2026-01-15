@@ -8,15 +8,15 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 
-from acoustic_alarm_engine.dsp import SpectralMonitor
-from acoustic_alarm_engine.events import PatternMatchEvent, ToneEvent
-from acoustic_alarm_engine.filter import FrequencyFilter
-from acoustic_alarm_engine.generator import EventGenerator
-from acoustic_alarm_engine.models import AlarmProfile
-from acoustic_alarm_engine.profiles import load_profiles_from_yaml
-from acoustic_alarm_engine.tester.display import Display
-from acoustic_alarm_engine.tester.mixer import AudioMixer
-from acoustic_alarm_engine.windowed_matcher import WindowedMatcher
+from ..processing.dsp import SpectralMonitor
+from ..events import PatternMatchEvent, ToneEvent
+from ..processing.filter import FrequencyFilter
+from ..analysis.generator import EventGenerator
+from ..models import AlarmProfile
+from ..profiles import load_profiles_from_yaml
+from .display import Display
+from .mixer import AudioMixer
+from ..analysis.windowed_matcher import WindowedMatcher
 
 
 @dataclass
@@ -52,10 +52,10 @@ class TestRunner:
         # High-resolution mode: smaller chunks and tighter tolerances
         # for detecting fast patterns like T3/T4 alarms with <100ms gaps
         if high_resolution:
-            chunk_size = 2048  # ~46ms chunks vs ~93ms
-            min_tone_duration = 0.05  # 50ms minimum
-            dropout_tolerance = 0.05  # 50ms gap tolerance
-            self.display.info("High-resolution mode: 50ms dropout tolerance")
+            chunk_size = 1024  # ~23ms chunks
+            min_tone_duration = 0.02  # 20ms minimum
+            dropout_tolerance = 0.02  # 20ms gap tolerance
+            self.display.info("High-resolution mode: 23ms chunks, 20ms dropout tolerance")
         else:
             min_tone_duration = 0.1
             dropout_tolerance = 0.15

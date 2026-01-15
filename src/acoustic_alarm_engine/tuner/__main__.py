@@ -3,7 +3,7 @@
 Usage: python -m acoustic_alarm_engine.tuner
 """
 
-from acoustic_alarm_engine.tuner import main
+from . import main
 
 if __name__ == "__main__":
     main()

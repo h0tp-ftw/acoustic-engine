@@ -3,8 +3,8 @@
 import logging
 from typing import List, Optional, Tuple
 
-from acoustic_alarm_engine.events import AudioEvent, PatternMatchEvent, ToneEvent
-from acoustic_alarm_engine.models import AlarmProfile
+from ..events import AudioEvent, PatternMatchEvent, ToneEvent
+from ..models import AlarmProfile
 
 logger = logging.getLogger(__name__)
 

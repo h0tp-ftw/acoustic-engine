@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from acoustic_alarm_engine.events import ToneEvent
+from ..events import ToneEvent
 
 
 @dataclass

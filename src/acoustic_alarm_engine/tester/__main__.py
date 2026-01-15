@@ -3,7 +3,7 @@
 Usage: python -m acoustic_alarm_engine.tester
 """
 
-from acoustic_alarm_engine.tester import cli
+from . import cli
 
 if __name__ == "__main__":
     cli()

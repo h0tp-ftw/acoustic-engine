@@ -10,9 +10,9 @@ import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-from acoustic_alarm_engine.event_buffer import EventBuffer
-from acoustic_alarm_engine.events import PatternMatchEvent, ToneEvent
-from acoustic_alarm_engine.models import AlarmProfile
+from .event_buffer import EventBuffer
+from ..events import PatternMatchEvent, ToneEvent
+from ..models import AlarmProfile
 
 logger = logging.getLogger(__name__)
 

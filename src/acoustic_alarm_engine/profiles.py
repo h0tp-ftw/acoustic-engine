@@ -12,7 +12,7 @@ from typing import List, Union
 
 import yaml
 
-from acoustic_alarm_engine.models import AlarmProfile, Range, ResolutionConfig, Segment
+from .models import AlarmProfile, Range, ResolutionConfig, Segment
 
 logger = logging.getLogger(__name__)
 

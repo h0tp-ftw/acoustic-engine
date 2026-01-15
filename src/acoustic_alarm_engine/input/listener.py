@@ -10,7 +10,7 @@ from typing import Callable, Optional
 
 import numpy as np
 
-from acoustic_alarm_engine.config import AudioSettings
+from ..config import AudioSettings
 
 try:
     import pyaudio
