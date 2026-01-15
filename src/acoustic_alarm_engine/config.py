@@ -20,8 +20,8 @@ from .profiles import _parse_profile, load_profiles_from_yaml
 logger = logging.getLogger(__name__)
 
 # Default resolution values
-DEFAULT_MIN_TONE_DURATION = 0.02  # seconds (20ms for high res)
-DEFAULT_DROPOUT_TOLERANCE = 0.02  # seconds (20ms for high res)
+DEFAULT_MIN_TONE_DURATION = 0.04  # seconds (requires ~2 chunks to confirm)
+DEFAULT_DROPOUT_TOLERANCE = 0.03  # seconds (tolerates 1 missing chunk)
 
 # High-resolution preset values
 HIGHRES_MIN_TONE_DURATION = 0.05  # 50ms
@@ -290,6 +290,19 @@ class GlobalConfig:
             sample_rate=audio_config.sample_rate,
             chunk_size=audio_config.chunk_size,
         )
+
+        # 5. Apply Engine Overrides from YAML
+        # Allow explicit configuration to override profile-based defaults
+        engine_data = data.get("engine", {})
+        if engine_data:
+            if "chunk_size" in engine_data:
+                engine_config.chunk_size = int(engine_data["chunk_size"])
+            if "min_tone_duration" in engine_data:
+                engine_config.min_tone_duration = float(engine_data["min_tone_duration"])
+            if "dropout_tolerance" in engine_data:
+                engine_config.dropout_tolerance = float(engine_data["dropout_tolerance"])
+            if "min_magnitude" in engine_data:
+                engine_config.min_magnitude = float(engine_data["min_magnitude"])
 
         return cls(
             system=system_config,

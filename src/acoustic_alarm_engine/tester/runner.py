@@ -17,6 +17,7 @@ from ..profiles import load_profiles_from_yaml
 from .display import Display
 from .mixer import AudioMixer
 from ..analysis.windowed_matcher import WindowedMatcher
+from ..config import DEFAULT_MIN_TONE_DURATION, DEFAULT_DROPOUT_TOLERANCE, AudioSettings
 
 
 @dataclass
@@ -40,7 +41,7 @@ class TestRunner:
         verbose: bool = False,
         display: Optional[Display] = None,
         sample_rate: int = 44100,
-        chunk_size: int = 4096,
+        chunk_size: Optional[int] = None,
         high_resolution: bool = False,
         min_magnitude: float = 0.05,
     ):
@@ -50,6 +51,10 @@ class TestRunner:
         self.display = display or Display(verbose=verbose)
         self.high_resolution = high_resolution
 
+        # Resolve chunk size from defaults if not provided
+        if chunk_size is None:
+            chunk_size = AudioSettings().chunk_size
+
         # High-resolution mode: smaller chunks and tighter tolerances
         # for detecting fast patterns like T3/T4 alarms with <100ms gaps
         if high_resolution:
@@ -58,8 +63,8 @@ class TestRunner:
             dropout_tolerance = 0.02  # 20ms gap tolerance
             self.display.info("High-resolution mode: 23ms chunks, 20ms dropout tolerance")
         else:
-            min_tone_duration = 0.1
-            dropout_tolerance = 0.15
+            min_tone_duration = DEFAULT_MIN_TONE_DURATION
+            dropout_tolerance = DEFAULT_DROPOUT_TOLERANCE
 
         self.sample_rate = sample_rate
         self.chunk_size = chunk_size
