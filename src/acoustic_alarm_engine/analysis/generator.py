@@ -65,6 +65,17 @@ class EventGenerator:
         self.chunk_size = chunk_size
         self.chunk_duration = chunk_size / sample_rate
 
+        # Safeguard: Ensure dropout tolerance is at least 1.5x chunk duration
+        # to prevent single-chunk noise from breaking tones.
+        safe_dropout = self.chunk_duration * 1.5
+        if dropout_tolerance < safe_dropout:
+            logger.warning(
+                f"dropout_tolerance ({dropout_tolerance:.3f}s) is too low for "
+                f"chunk_duration ({self.chunk_duration:.3f}s). "
+                f"Increasing to {safe_dropout:.3f}s for stability."
+            )
+            dropout_tolerance = safe_dropout
+
         # Configuration
         self.min_tone_duration = min_tone_duration
         self.dropout_tolerance = dropout_tolerance

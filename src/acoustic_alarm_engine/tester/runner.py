@@ -58,10 +58,10 @@ class TestRunner:
         # High-resolution mode: smaller chunks and tighter tolerances
         # for detecting fast patterns like T3/T4 alarms with <100ms gaps
         if high_resolution:
-            chunk_size = 1024  # ~23ms chunks
+            chunk_size = 512  # ~11.6ms chunks
             min_tone_duration = 0.02  # 20ms minimum
-            dropout_tolerance = 0.02  # 20ms gap tolerance
-            self.display.info("High-resolution mode: 23ms chunks, 20ms dropout tolerance")
+            dropout_tolerance = 0.04  # 40ms gap tolerance (allows ~3 noisy chunks)
+            self.display.info("High-resolution mode: 11ms chunks, 40ms dropout tolerance")
         else:
             min_tone_duration = DEFAULT_MIN_TONE_DURATION
             dropout_tolerance = DEFAULT_DROPOUT_TOLERANCE
