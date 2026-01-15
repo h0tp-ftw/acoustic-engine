@@ -190,19 +190,57 @@ python -m acoustic_alarm_engine.tuner
 
 ## 🏗 Architecture
 
+The Acoustic Alarm Engine is built as a highly modular 4-stage processing pipeline, designed for deterministic performance and extreme reliability in difficult acoustic environments.
+
+```mermaid
+graph TD
+    subgraph "Input Layer"
+        MIC[🎤 Microphone] --> AL[AudioListener]
+        FILE[📄 Audio File] --> PR[Manual Processing]
+        SYN[⚡ Synthetic Data] --> PR
+    end
+
+    subgraph "Processing Layer (DSP)"
+        AL --> SM[SpectralMonitor<br/>FFT + Peak Detection]
+        PR --> SM
+        SM --> FF[FrequencyFilter<br/>Noise Screener]
+    end
+
+    subgraph "Analysis Layer"
+        FF --> EG[EventGenerator<br/>Peaks ➔ Tones]
+        EG --> WM[WindowedMatcher<br/>Sliding Window Pattern Matching]
+    end
+
+    subgraph "Output Layer"
+        WM --> CB[🚀 Callbacks / Detections]
+    end
+
+    subgraph "Configuration"
+        YP[📄 YAML Profiles] --> WM
+        CONFIG[⚙️ GlobalConfig] --> AL
+        CONFIG --> SM
+    end
+
+    style MIC fill:#f9f,stroke:#333,stroke-width:2px
+    style CB fill:#8f8,stroke:#333,stroke-width:2px
+    style YP fill:#f96,stroke:#333,stroke-width:2px
 ```
-Audio Input → DSP/FFT → Frequency Filter → Event Generator → Windowed Matcher → Callbacks
-```
 
-The engine uses **windowed event analysis** for noise resilience:
+### **1. Input Layer ([Detailed Docs](src/acoustic_alarm_engine/input/README.md))**
 
-1. **Buffer Events**: All relevant frequency hits are captured with timestamps
-2. **Sliding Windows**: Every `eval_frequency` seconds, analyze the last `window_duration` seconds
-3. **Pattern Search**: Find the best pattern match within the window, ignoring surrounding noise
+The engine is hardware-agnostic. While it includes a `PyAudio` implementation for live capture, it can process audio from any source (files, network streams, etc.) via the `process_chunk` interface.
 
-This approach is robust to background noise that would otherwise break sequential state-machine matching.
+### **2. Processing Layer ([Detailed Docs](src/acoustic_alarm_engine/processing/README.md))**
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed documentation.
+- **SpectralMonitor**: Performs Real-Time FFT and identifies peaks. It uses an **adaptive noise floor** to remain robust as ambient sound levels change.
+- **FrequencyFilter**: Acts as a "firewall" that discards all audio frequencies not explicitly defined in your loaded profiles, preventing non-alarm sounds from wasting CPU cycles.
+
+### **3. Analysis Layer ([Detailed Docs](src/acoustic_alarm_engine/analysis/README.md))**
+
+- **EventGenerator**: Debounces spectral peaks, bridging transient dropouts and ensuring only "stable" tones are processed.
+- **WindowedMatcher**: Uses a sliding window algorithm instead of a fragile state machine. This allows it to "see" a pattern even if it's surrounded by impulsive noise or if the recording started mid-beep.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for a deep dive into the implementation details.
 
 ---
 
