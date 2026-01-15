@@ -635,28 +635,48 @@ class AudioEngine {
 
     /**
      * Analyze recorded audio and extract segments for auto-tuning.
+     * Enhanced with adaptive noise floor, configurable parameters, and pattern recognition.
+     * @param {Object} options - Analysis options
+     * @param {number|null} options.silenceThreshold - Silence threshold (null = auto-detect)
+     * @param {number} options.minSegmentDuration - Minimum segment duration in seconds
+     * @param {boolean} options.patternRecognition - Whether to group similar patterns
+     * @param {number} options.frequencyTolerance - Frequency tolerance for grouping (Hz)
+     * @param {number} options.minGapDuration - Minimum gap duration to consider as silence
      * @returns {Object} Analysis result with detected segments
      */
-    analyzeRecording() {
+    analyzeRecording(options = {}) {
         if (!this.recordedBuffer) {
             return { segments: [], warnings: ['No recording available'] };
         }
 
+        const {
+            silenceThreshold = null,  // null = auto-detect
+            minSegmentDuration = 0.04,
+            patternRecognition = true,
+            frequencyTolerance = 150,
+            minGapDuration = 0.03
+        } = options;
+
         const audioData = this.recordedBuffer.getChannelData(0);
         const sampleRate = this.recordedBuffer.sampleRate;
-        const chunkSize = 2048;
+        const chunkSize = this.fftSize;  // Use configurable FFT size
+        const hopSize = Math.floor(chunkSize / 2);  // 50% overlap for better resolution
         
-        // Parameters - Increased silence threshold for better noise rejection
-        const silenceThreshold = 0.03;
-        const minSegmentDuration = 0.05;
+        // Auto-detect noise floor if not specified
+        const effectiveThreshold = silenceThreshold !== null 
+            ? silenceThreshold 
+            : this._calculateNoiseFloor(audioData, sampleRate);
+        
+        console.log(`Auto-tune using threshold: ${effectiveThreshold.toFixed(4)}, FFT size: ${chunkSize}`);
         
         const segments = [];
         let currentType = null;
         let segmentStart = 0;
         let freqHistory = [];
+        let rmsHistory = [];
         
-        // Process in chunks
-        for (let i = 0; i < audioData.length - chunkSize; i += chunkSize) {
+        // Process in overlapping chunks for better temporal resolution
+        for (let i = 0; i < audioData.length - chunkSize; i += hopSize) {
             const chunk = audioData.slice(i, i + chunkSize);
             const timestamp = i / sampleRate;
             
@@ -667,20 +687,26 @@ class AudioEngine {
             }
             const rms = Math.sqrt(sum / chunk.length);
             
-            if (rms < silenceThreshold) {
+            if (rms < effectiveThreshold) {
                 // Silence
                 if (currentType === 'tone') {
                     const avgFreq = freqHistory.length > 0 
-                        ? freqHistory.reduce((a, b) => a + b, 0) / freqHistory.length 
+                        ? this._calculateMedianFrequency(freqHistory)
+                        : 0;
+                    const avgRms = rmsHistory.length > 0
+                        ? rmsHistory.reduce((a, b) => a + b, 0) / rmsHistory.length
                         : 0;
                     segments.push({
                         type: 'tone',
                         startTime: segmentStart,
                         endTime: timestamp,
                         frequency: avgFreq,
+                        freqStdDev: this._calculateStdDev(freqHistory),
+                        amplitude: avgRms,
                         duration: timestamp - segmentStart
                     });
                     freqHistory = [];
+                    rmsHistory = [];
                     segmentStart = timestamp;
                     currentType = 'silence';
                 } else if (currentType === null) {
@@ -688,25 +714,31 @@ class AudioEngine {
                     segmentStart = timestamp;
                 }
             } else {
-                // Potential tone - estimate frequency using autocorrelation (better than zero-crossing)
-                const freq = this._estimateFrequencyAutocorrelation(chunk, sampleRate);
+                // Potential tone - use FFT-based frequency detection for better accuracy
+                const freq = this._estimateFrequencyFFT(chunk, sampleRate);
                 
                 if (currentType === 'silence') {
-                    segments.push({
-                        type: 'silence',
-                        startTime: segmentStart,
-                        endTime: timestamp,
-                        duration: timestamp - segmentStart
-                    });
+                    const silenceDuration = timestamp - segmentStart;
+                    if (silenceDuration >= minGapDuration) {
+                        segments.push({
+                            type: 'silence',
+                            startTime: segmentStart,
+                            endTime: timestamp,
+                            duration: silenceDuration
+                        });
+                    }
                     segmentStart = timestamp;
                     currentType = 'tone';
                     freqHistory = [freq];
+                    rmsHistory = [rms];
                 } else if (currentType === 'tone') {
                     freqHistory.push(freq);
+                    rmsHistory.push(rms);
                 } else {
                     currentType = 'tone';
                     segmentStart = timestamp;
                     freqHistory = [freq];
+                    rmsHistory = [rms];
                 }
             }
         }
@@ -714,12 +746,14 @@ class AudioEngine {
         // Close final segment
         const finalTime = audioData.length / sampleRate;
         if (currentType === 'tone' && freqHistory.length > 0) {
-            const avgFreq = freqHistory.reduce((a, b) => a + b, 0) / freqHistory.length;
+            const avgFreq = this._calculateMedianFrequency(freqHistory);
             segments.push({
                 type: 'tone',
                 startTime: segmentStart,
                 endTime: finalTime,
                 frequency: avgFreq,
+                freqStdDev: this._calculateStdDev(freqHistory),
+                amplitude: rmsHistory.reduce((a, b) => a + b, 0) / rmsHistory.length,
                 duration: finalTime - segmentStart
             });
         } else if (currentType === 'silence') {
@@ -732,17 +766,373 @@ class AudioEngine {
         }
         
         // Filter out very short segments
-        const filtered = segments.filter(s => s.duration >= minSegmentDuration);
+        let filtered = segments.filter(s => s.duration >= minSegmentDuration);
         
-        // Generate proposed profile segments
-        const proposedSegments = this._generateProfileFromSegments(filtered);
+        // Merge very short silences between similar tones
+        filtered = this._mergeShortGaps(filtered, minGapDuration, frequencyTolerance);
+        
+        // Apply pattern recognition if enabled
+        let proposedSegments;
+        let patternInfo = null;
+        
+        if (patternRecognition) {
+            const patternResult = this._recognizePatterns(filtered, frequencyTolerance);
+            proposedSegments = patternResult.segments;
+            patternInfo = patternResult.patternInfo;
+        } else {
+            proposedSegments = this._generateProfileFromSegments(filtered);
+        }
+        
+        // Calculate detection quality metrics
+        const qualityMetrics = this._calculateQualityMetrics(filtered, effectiveThreshold);
         
         return {
             rawSegments: filtered,
             proposedSegments: proposedSegments,
             totalDuration: finalTime,
-            warnings: filtered.length < 2 ? ['Very few segments detected. Try recording a longer sample.'] : []
+            noiseFloor: effectiveThreshold,
+            patternInfo: patternInfo,
+            qualityMetrics: qualityMetrics,
+            warnings: this._generateWarnings(filtered, qualityMetrics)
         };
+    }
+
+    /**
+     * Calculate adaptive noise floor from the audio data.
+     * Analyzes the quietest portions to establish a baseline.
+     * @param {Float32Array} audioData - Audio samples
+     * @param {number} sampleRate - Sample rate
+     * @returns {number} Calculated noise floor threshold
+     */
+    _calculateNoiseFloor(audioData, sampleRate) {
+        const windowSize = Math.floor(sampleRate * 0.02);  // 20ms windows
+        const rmsValues = [];
+        
+        // Calculate RMS for each window
+        for (let i = 0; i < audioData.length - windowSize; i += windowSize) {
+            let sum = 0;
+            for (let j = 0; j < windowSize; j++) {
+                sum += audioData[i + j] * audioData[i + j];
+            }
+            rmsValues.push(Math.sqrt(sum / windowSize));
+        }
+        
+        // Sort and take the 15th percentile as noise floor
+        rmsValues.sort((a, b) => a - b);
+        const percentileIndex = Math.floor(rmsValues.length * 0.15);
+        const noiseFloor = rmsValues[percentileIndex] || 0.01;
+        
+        // Add 50% headroom above noise floor for reliable detection
+        return Math.max(noiseFloor * 1.5, 0.01);
+    }
+
+    /**
+     * Calculate median frequency from array (more robust than mean).
+     */
+    _calculateMedianFrequency(freqHistory) {
+        if (freqHistory.length === 0) return 0;
+        const sorted = [...freqHistory].sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    }
+
+    /**
+     * Calculate standard deviation.
+     */
+    _calculateStdDev(values) {
+        if (values.length < 2) return 0;
+        const mean = values.reduce((a, b) => a + b, 0) / values.length;
+        const squareDiffs = values.map(v => (v - mean) ** 2);
+        return Math.sqrt(squareDiffs.reduce((a, b) => a + b, 0) / values.length);
+    }
+
+    /**
+     * Estimate frequency using FFT peak detection (more accurate than autocorrelation).
+     */
+    _estimateFrequencyFFT(chunk, sampleRate) {
+        const fftSize = chunk.length;
+        
+        // Apply Hamming window
+        const windowed = new Float32Array(fftSize);
+        for (let i = 0; i < fftSize; i++) {
+            windowed[i] = chunk[i] * (0.54 - 0.46 * Math.cos(2 * Math.PI * i / (fftSize - 1)));
+        }
+        
+        // Compute spectrum
+        const spectrum = this._computeSpectrum(windowed, sampleRate);
+        
+        // Find the dominant peak in alarm frequency range (500-5000 Hz)
+        const minBin = Math.floor(500 * fftSize / sampleRate);
+        const maxBin = Math.floor(5000 * fftSize / sampleRate);
+        
+        let maxAmp = 0;
+        let maxBinIdx = minBin;
+        
+        for (let i = minBin; i < Math.min(maxBin, spectrum.length); i++) {
+            if (spectrum[i] > maxAmp) {
+                maxAmp = spectrum[i];
+                maxBinIdx = i;
+            }
+        }
+        
+        // Quadratic interpolation for sub-bin accuracy
+        if (maxBinIdx > 0 && maxBinIdx < spectrum.length - 1) {
+            const y1 = spectrum[maxBinIdx - 1];
+            const y2 = spectrum[maxBinIdx];
+            const y3 = spectrum[maxBinIdx + 1];
+            const delta = 0.5 * (y1 - y3) / (y1 - 2 * y2 + y3);
+            return (maxBinIdx + delta) * sampleRate / fftSize;
+        }
+        
+        return maxBinIdx * sampleRate / fftSize;
+    }
+
+    /**
+     * Merge very short gaps between similar frequency tones.
+     */
+    _mergeShortGaps(segments, minGapDuration, frequencyTolerance) {
+        if (segments.length < 3) return segments;
+        
+        const merged = [];
+        let i = 0;
+        
+        while (i < segments.length) {
+            const current = segments[i];
+            
+            if (current.type === 'tone') {
+                // Look ahead for tone-silence-tone patterns with short silence
+                if (i + 2 < segments.length) {
+                    const gap = segments[i + 1];
+                    const next = segments[i + 2];
+                    
+                    if (gap.type === 'silence' && 
+                        gap.duration < minGapDuration * 2 && 
+                        next.type === 'tone' &&
+                        Math.abs(current.frequency - next.frequency) < frequencyTolerance) {
+                        // Merge the tones
+                        merged.push({
+                            type: 'tone',
+                            startTime: current.startTime,
+                            endTime: next.endTime,
+                            frequency: (current.frequency + next.frequency) / 2,
+                            duration: next.endTime - current.startTime,
+                            amplitude: (current.amplitude + next.amplitude) / 2
+                        });
+                        i += 3;
+                        continue;
+                    }
+                }
+            }
+            
+            merged.push(current);
+            i++;
+        }
+        
+        return merged;
+    }
+
+    /**
+     * Recognize repeating patterns in segments (e.g., T3 = 3 beeps + silence).
+     */
+    _recognizePatterns(segments, frequencyTolerance) {
+        // Extract just the tones for pattern analysis
+        const tones = segments.filter(s => s.type === 'tone');
+        const silences = segments.filter(s => s.type === 'silence');
+        
+        if (tones.length < 2) {
+            return {
+                segments: this._generateProfileFromSegments(segments),
+                patternInfo: { type: 'unknown', confidence: 0 }
+            };
+        }
+        
+        // Calculate statistics for tones
+        const toneFreqs = tones.map(t => t.frequency);
+        const toneDurations = tones.map(t => t.duration);
+        const avgFreq = this._calculateMedianFrequency(toneFreqs);
+        const freqVariance = this._calculateStdDev(toneFreqs);
+        const avgDuration = toneDurations.reduce((a, b) => a + b, 0) / toneDurations.length;
+        const durationVariance = this._calculateStdDev(toneDurations);
+        
+        // Check if tones are consistent (low variance = repeating pattern)
+        const isConsistentFreq = freqVariance < frequencyTolerance;
+        const isConsistentDuration = durationVariance < avgDuration * 0.3;
+        
+        // Analyze silence patterns for inter-beep vs inter-cycle gaps
+        const silenceDurations = silences.map(s => s.duration);
+        let shortGaps = [];
+        let longGaps = [];
+        
+        if (silenceDurations.length > 0) {
+            const medianSilence = this._calculateMedianFrequency(silenceDurations);
+            shortGaps = silenceDurations.filter(d => d < medianSilence * 1.5);
+            longGaps = silenceDurations.filter(d => d >= medianSilence * 1.5);
+        }
+        
+        // Determine pattern type
+        let patternType = 'custom';
+        let patternElements = 0;
+        let confidence = 0;
+        
+        if (isConsistentFreq && isConsistentDuration) {
+            // Count tones between long gaps to detect T3, T4 patterns
+            if (longGaps.length > 0 && shortGaps.length > 0) {
+                const ratio = shortGaps.length / longGaps.length;
+                if (Math.abs(ratio - 2) < 0.5) {
+                    patternType = 'T3';  // 3 beeps, 2 short gaps, 1 long gap
+                    patternElements = 3;
+                    confidence = 0.8;
+                } else if (Math.abs(ratio - 3) < 0.5) {
+                    patternType = 'T4';  // 4 beeps, 3 short gaps, 1 long gap
+                    patternElements = 4;
+                    confidence = 0.8;
+                }
+            } else if (tones.length >= 2) {
+                // Simple repeating tone pattern
+                patternType = 'repeating';
+                patternElements = 1;
+                confidence = 0.7;
+            }
+        }
+        
+        // Generate optimized segments based on detected pattern
+        const proposedSegments = [];
+        
+        if (patternType === 'T3' || patternType === 'T4') {
+            // Generate a proper T3/T4 pattern
+            const avgShortGap = shortGaps.length > 0 
+                ? shortGaps.reduce((a, b) => a + b, 0) / shortGaps.length 
+                : 0.1;
+            const avgLongGap = longGaps.length > 0 
+                ? longGaps.reduce((a, b) => a + b, 0) / longGaps.length 
+                : 1.0;
+            
+            for (let i = 0; i < patternElements; i++) {
+                proposedSegments.push({
+                    type: 'tone',
+                    freqMin: Math.round(avgFreq * 0.95),
+                    freqMax: Math.round(avgFreq * 1.05),
+                    durationMin: Math.round(avgDuration * 0.8 * 100) / 100,
+                    durationMax: Math.round(avgDuration * 1.2 * 100) / 100
+                });
+                
+                // Add short gap between beeps (except after last)
+                if (i < patternElements - 1) {
+                    proposedSegments.push({
+                        type: 'silence',
+                        freqMin: 0,
+                        freqMax: 0,
+                        durationMin: Math.round(avgShortGap * 0.7 * 100) / 100,
+                        durationMax: Math.round(avgShortGap * 1.3 * 100) / 100
+                    });
+                }
+            }
+            
+            // Add long gap at the end
+            proposedSegments.push({
+                type: 'silence',
+                freqMin: 0,
+                freqMax: 0,
+                durationMin: Math.round(avgLongGap * 0.7 * 100) / 100,
+                durationMax: Math.round(avgLongGap * 1.3 * 100) / 100
+            });
+            
+        } else if (patternType === 'repeating') {
+            // Simple tone-silence pattern
+            const avgSilence = silenceDurations.length > 0
+                ? silenceDurations.reduce((a, b) => a + b, 0) / silenceDurations.length
+                : 0.5;
+            
+            proposedSegments.push({
+                type: 'tone',
+                freqMin: Math.round(avgFreq * 0.95),
+                freqMax: Math.round(avgFreq * 1.05),
+                durationMin: Math.round(avgDuration * 0.8 * 100) / 100,
+                durationMax: Math.round(avgDuration * 1.2 * 100) / 100
+            });
+            proposedSegments.push({
+                type: 'silence',
+                freqMin: 0,
+                freqMax: 0,
+                durationMin: Math.round(avgSilence * 0.7 * 100) / 100,
+                durationMax: Math.round(avgSilence * 1.3 * 100) / 100
+            });
+            
+        } else {
+            // Fall back to raw segment generation
+            return {
+                segments: this._generateProfileFromSegments(segments),
+                patternInfo: { type: 'custom', confidence: 0.5 }
+            };
+        }
+        
+        return {
+            segments: proposedSegments,
+            patternInfo: {
+                type: patternType,
+                elements: patternElements,
+                confidence: confidence,
+                avgFrequency: avgFreq,
+                avgDuration: avgDuration,
+                shortGapAvg: shortGaps.length > 0 ? shortGaps.reduce((a, b) => a + b, 0) / shortGaps.length : null,
+                longGapAvg: longGaps.length > 0 ? longGaps.reduce((a, b) => a + b, 0) / longGaps.length : null
+            }
+        };
+    }
+
+    /**
+     * Calculate quality metrics for the detection.
+     */
+    _calculateQualityMetrics(segments, noiseFloor) {
+        const tones = segments.filter(s => s.type === 'tone');
+        
+        if (tones.length === 0) {
+            return { signalToNoise: 0, frequencyStability: 0, overall: 0 };
+        }
+        
+        // Average amplitude vs noise floor
+        const avgAmplitude = tones.reduce((sum, t) => sum + (t.amplitude || 0), 0) / tones.length;
+        const signalToNoise = avgAmplitude / noiseFloor;
+        
+        // Frequency stability (lower variance = more stable)
+        const freqVariance = this._calculateStdDev(tones.map(t => t.frequency));
+        const avgFreq = this._calculateMedianFrequency(tones.map(t => t.frequency));
+        const frequencyStability = 1 - Math.min(freqVariance / (avgFreq * 0.1), 1);
+        
+        // Overall quality score
+        const overall = (Math.min(signalToNoise / 5, 1) * 0.6 + frequencyStability * 0.4);
+        
+        return {
+            signalToNoise: Math.round(signalToNoise * 10) / 10,
+            frequencyStability: Math.round(frequencyStability * 100) / 100,
+            overall: Math.round(overall * 100) / 100
+        };
+    }
+
+    /**
+     * Generate appropriate warnings based on detection results.
+     */
+    _generateWarnings(segments, qualityMetrics) {
+        const warnings = [];
+        
+        if (segments.length < 2) {
+            warnings.push('Very few segments detected. Try recording a longer sample or adjusting threshold.');
+        }
+        
+        if (qualityMetrics.signalToNoise < 2) {
+            warnings.push('Low signal-to-noise ratio. Recording may be too quiet or noisy.');
+        }
+        
+        if (qualityMetrics.frequencyStability < 0.5) {
+            warnings.push('Inconsistent frequencies detected. This may not be a standard alarm pattern.');
+        }
+        
+        const tones = segments.filter(s => s.type === 'tone');
+        if (tones.length > 20) {
+            warnings.push('Many segments detected. Consider cropping to a single pattern cycle.');
+        }
+        
+        return warnings;
     }
 
     /**

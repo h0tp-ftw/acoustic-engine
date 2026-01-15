@@ -125,9 +125,38 @@
             </div>
           </div>
 
+          <!-- Auto-Tune Settings Section -->
+          <div class="analysis-settings-section">
+            <h3>Auto-Tune Settings</h3>
+            <div class="settings-row">
+              <label>
+                Silence Detection
+                <select id="silenceMode">
+                  <option value="auto">Auto-detect noise floor</option>
+                  <option value="manual">Manual threshold</option>
+                </select>
+              </label>
+              <div class="range-control" id="silenceThresholdControl" style="display: none; flex: 1;">
+                 <label>Threshold: <span id="silenceThresholdValue">0.03</span></label>
+                 <input type="range" id="silenceThreshold" min="0.01" max="0.2" step="0.01" value="0.03" />
+              </div>
+            </div>
+            <div class="settings-row">
+              <label class="checkbox-label">
+                <input type="checkbox" id="patternRecognition" checked />
+                Group similar patterns (T3/T4 detection)
+              </label>
+            </div>
+            
+            <div id="patternInfo" class="pattern-info" style="display: none;">
+                <!-- Pattern detection results -->
+            </div>
+            
+          </div>
+
           <!-- Analysis Settings Section -->
           <div class="analysis-settings-section">
-            <h3>Analysis Settings</h3>
+            <h3>Spectrogram Settings</h3>
             <div class="settings-row">
               <label>
                 Resolution
@@ -182,6 +211,16 @@
           </div>
 
           <h3>Segments (Pattern Definition)</h3>
+          <div class="editor-toolbar">
+              <div class="toolbar-group">
+                  <button id="undoBtn" class="toolbar-btn" title="Undo" disabled>↩ Undo</button>
+                  <button id="redoBtn" class="toolbar-btn" title="Redo" disabled>↪ Redo</button>
+              </div>
+              <div class="toolbar-group">
+                  <button id="mergeBtn" class="toolbar-btn" title="Merge selected segments">⫚⫛ Merge</button>
+                  <button id="splitBtn" class="toolbar-btn" title="Split selected segment">✂ Split</button>
+              </div>
+          </div>
           <div id="segmentList" class="segment-list">
             <!-- Segments added dynamically -->
           </div>

@@ -1243,3 +1243,145 @@ select:focus:not(:focus-visible) {
   color: var(--text-muted);
   line-height: 1.5;
 }
+
+/* === Auto-Tune Settings === */
+.range-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-surface);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.range-control label {
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  margin: 0;
+}
+
+.range-control input[type="range"] {
+  flex: 1;
+  width: 100px;
+}
+
+.checkbox-label {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+/* Pattern Info Badge */
+.pattern-info {
+  background: var(--bg-surface-hover);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin-top: 12px;
+  border: 1px solid var(--accent-secondary);
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.pattern-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.pattern-badge.pattern-T3 {
+  background: rgba(243, 139, 168, 0.2); /* Red tint */
+  color: var(--ctp-red);
+  border: 1px solid var(--ctp-red);
+}
+
+.pattern-badge.pattern-T4 {
+  background: rgba(250, 179, 135, 0.2); /* Peach tint */
+  color: var(--ctp-peach);
+  border: 1px solid var(--ctp-peach);
+}
+
+.pattern-badge.pattern-repeating {
+  background: rgba(137, 180, 250, 0.2); /* Blue tint */
+  color: var(--ctp-blue);
+  border: 1px solid var(--ctp-blue);
+}
+
+.pattern-details {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+/* === Editor Toolbar === */
+.editor-toolbar {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  gap: 10px;
+}
+
+.toolbar-group {
+  display: flex;
+  gap: 8px;
+}
+
+.toolbar-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.toolbar-btn:hover:not(:disabled) {
+  background: var(--bg-surface-hover);
+  border-color: var(--primary-color);
+}
+
+.toolbar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* === Segment Selection === */
+.segment-item {
+  border: 2px solid transparent; /* Prepare for border change */
+  transition: border-color 0.2s, box-shadow 0.2s;
+  cursor: pointer; /* Indicate selectable */
+}
+
+/* Make inputs readable on selected items */
+.segment-item input, .segment-item select {
+    cursor: text;
+}
+.segment-item select {
+    cursor: pointer;
+}
+
+.segment-item.selected {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(203, 166, 247, 0.2); /* Mauve glow */
+  background: var(--bg-surface-hover);
+}
+
+.segment-item:hover:not(.selected) {
+    border-color: var(--overlay0);
+}
