@@ -139,6 +139,7 @@ class EngineConfig:
     # Advanced DSP
     min_sharpness: float = 1.5
     noise_floor_factor: float = 3.0
+    noise_learning_rate: float = 0.01  # Alpha for background noise profile updates
     max_peaks: int = 5
 
     # Advanced Generation
@@ -348,6 +349,8 @@ class GlobalConfig:
                 engine_config.noise_floor_factor = float(engine_data["noise_floor_factor"])
             if "max_peaks" in engine_data:
                 engine_config.max_peaks = int(engine_data["max_peaks"])
+            if "noise_learning_rate" in engine_data:
+                engine_config.noise_learning_rate = float(engine_data["noise_learning_rate"])
 
             # Advanced Generation
             if "frequency_tolerance" in engine_data:

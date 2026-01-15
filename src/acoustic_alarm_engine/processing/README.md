@@ -9,7 +9,8 @@ The `processing` module transforms raw time-domain audio data into filtered spec
 Performs the core Digital Signal Processing required to detect tones.
 
 - **Windowed FFT**: Applies a Hanning window to reduce spectral leakage before performing a Real FFT.
-- **Adaptive Noise Floor**: Calculates a dynamic threshold based on the median energy of the spectrum. This allows it to work in both silent and noisy rooms without manual calibration.
+- **Adaptive Noise Floor**: Calculates a dynamic threshold based on the median energy of the spectrum.
+- **Per-Bin Noise Profiling**: Background noise is learned per-frequency-bin (Spectral Subtraction). This allows the system to ignore loud, stationary noises (like fans, freezers, or motors) while still detecting quiet alarms in other frequency bands.
 - **Parabolic Interpolation**: Uses mathematical interpolation between FFT bins to find the "true" frequency of a peak with sub-bin precision.
 - **Sharpness Check**: Ensures identified peaks are actually distinct tones and not just wide-band noise.
 
@@ -44,4 +45,4 @@ for peak in relevant_peaks:
 
 ## ⚙️ Design Philosophy
 
-The processing layer is designed to be "deaf" to everything except the target sounds. The combination of **adaptive thresholding** and **frequency screening** makes this engine exceptionally stable in real-world environments like kitchens, factories, and warehouses.
+The processing layer is designed to be "deaf" to everything except the target sounds. The combination of **spectral subtraction** and **frequency screening** makes this engine exceptionally stable in real-world environments like kitchens, factories, and warehouses.

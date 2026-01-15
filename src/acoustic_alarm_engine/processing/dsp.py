@@ -2,7 +2,7 @@
 
 import logging
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 
@@ -33,6 +33,7 @@ class SpectralMonitor:
         min_sharpness: float = 1.5,
         noise_floor_factor: float = 3.0,
         max_peaks: int = 5,
+        noise_learning_rate: float = 0.01,
     ):
         """Initialize the spectral monitor.
 
@@ -43,17 +44,41 @@ class SpectralMonitor:
             min_sharpness: Peak required to be X times higher than neighbors
             noise_floor_factor: Multiplier for adaptive noise floor threshold
             max_peaks: Maximum number of peaks to return
+            noise_learning_rate: Alpha for noise profile updates (0.0 to 1.0)
         """
         self.sample_rate = sample_rate
         self.chunk_size = chunk_size
         self.freq_bins = np.fft.rfftfreq(chunk_size, 1.0 / sample_rate)
         self.window = np.hanning(chunk_size)
+        self.noise_profile: Optional[np.ndarray] = None
 
         # Configuration
         self.min_magnitude = min_magnitude
         self.min_sharpness = min_sharpness
         self.noise_floor_factor = noise_floor_factor
         self.max_peaks = max_peaks
+        self.noise_learning_rate = noise_learning_rate
+
+    def _update_noise_profile(self, fft_data: np.ndarray):
+        """Update the background noise profile using asymmetric EMA."""
+        if self.noise_profile is None:
+            self.noise_profile = fft_data.copy()
+            return
+
+        # Asymmetric update:
+        # - FAST update if current energy < background (we found a quieter floor)
+        # - SLOW update if current energy > background (potential signal or increased noise)
+
+        # We can implement this vector-wise
+        # Define alpha for each bin
+        # If fft < profile: alpha = 0.1 (fast adaptation to quiet)
+        # If fft > profile: alpha = self.noise_learning_rate (slow adaptation to noise)
+
+        # Vectorized implementation:
+        is_quieter = fft_data < self.noise_profile
+        alpha = np.where(is_quieter, 0.1, self.noise_learning_rate)
+
+        self.noise_profile = (1 - alpha) * self.noise_profile + alpha * fft_data
 
     def process(self, audio_chunk: np.ndarray) -> List[Peak]:
         """Process an audio chunk and return significant spectral peaks.
@@ -78,16 +103,22 @@ class SpectralMonitor:
         if len(fft_data) == 0:
             return []
 
-        # -- Adaptive Noise Floor Calculation --
-        # We estimate the noise floor as the median of the spectrum
-        # effectively ignoring the few high-energy peaks of the alarm.
-        noise_floor = np.median(fft_data)
-        # We require peaks to be significantly above the noise floor
-        # or above the absolute minimum, whichever is higher.
-        dynamic_threshold = max(self.min_magnitude, noise_floor * self.noise_floor_factor)
+        # Update noise profile
+        self._update_noise_profile(fft_data)
+
+        # -- Spectral Subtraction / Adaptive Thresholding --
+        # We use ADDITIVE thresholding because high volume stationary noise (like a fan)
+        # does not necessarily have high variance.
+        # Threshold = Mean + Margin.
+        # We use (min_magnitude * noise_floor_factor) as the safety margin.
+        safety_margin = self.min_magnitude * self.noise_floor_factor
+        dynamic_thresholds = np.maximum(self.min_magnitude, self.noise_profile + safety_margin)
 
         max_val = np.max(fft_data)
-        if max_val < dynamic_threshold:
+        # Quick check: if the loudest peak isn't above its local threshold, bail early
+        # (This is approximate since max(fft) might not be at the same bin as max(threshold),
+        # but if max(fft) < min(thresholds), we are definitely silent)
+        if max_val < np.min(dynamic_thresholds):
             return []
 
         # Peak finding
@@ -96,7 +127,9 @@ class SpectralMonitor:
         # Skip DC and Nyquist edge bins
         for i in range(2, len(fft_data) - 2):
             mag = fft_data[i]
-            if mag < dynamic_threshold:
+
+            # Check against per-bin threshold
+            if mag < dynamic_thresholds[i]:
                 continue
 
             # Check if local peak

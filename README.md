@@ -25,7 +25,9 @@ The Acoustic Alarm Engine is engineered for "Grandmaster" grade durability in re
 
 ### **Elite Performance Metrics**
 
-- **Extreme Noise Resilience**: Confirmed detection at **-15dB SNR (White Noise)** and **-20dB SNR (Pink Noise)** using high-resolution spectral analysis.
+- **Extreme Noise Resilience**: Confirmed detection at **-15dB SNR** (White/Pink Noise) and robust performance against **Chaotic Spectral Noise**.
+- **Spectral Subtraction**: New **Per-Bin Noise Profiling** allows the engine to "learn" and subtract stationary noise (fans, HVAC, motors), effectively making it invisible to the detector.
+- **Dynamic Background Rejection**: Tested against "Cocktail Party" scenarios (speech babble + clattering dishes). The engine correctly identifies alarms even when the background noise level exceeds the alarm volume (**Negative SNR**).
 - **Echo/Reverb Rejection**: Internal **Dip-Disconnect** logic allows the engine to "hear through" reverb decays of up to **50%**. Excellent for warehouses, tiled hallways, and large industrial spaces.
 - **Frequency Drift Tracking**: Automatically follows "dying piezo" buzzers that sweep through frequencies (tested up to **200Hz drift**) without losing lock.
 - **Alarm Collision Isolation**: Successfully isolates and detects a target T3 alarm even while a louder T4 distractor alarm is sounding in a different frequency lane.
@@ -34,6 +36,8 @@ The Acoustic Alarm Engine is engineered for "Grandmaster" grade durability in re
 ### **Best Suited For:**
 
 - 💨 **Smoke & CO Alarms**: Perfect for industry-standard T3 and T4 patterns.
+- 🏠 **Smart Homes**: Survives loud TVs, music, and dinner parties.
+- 👨‍🍳 **Busy Kitchens**: Ignores blenders, banging pots, and microwave beeps.
 - 🏥 **Medical Equipment**: Resilient to the chaotic acoustic environments of hospitals.
 - 🏭 **Industrial Warehouses**: Built-in echo rejection for high-reverb spaces.
 - 🍳 **Appliance Monitoring**: Differentiates between ovens, microwaves, and dishwashers.

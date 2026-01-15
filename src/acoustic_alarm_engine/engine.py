@@ -90,6 +90,7 @@ class Engine:
             min_sharpness=self.engine_config.min_sharpness,
             noise_floor_factor=self.engine_config.noise_floor_factor,
             max_peaks=self.engine_config.max_peaks,
+            noise_learning_rate=self.engine_config.noise_learning_rate,
         )
         self._freq_filter = FrequencyFilter(self.profiles)
         self._generator = EventGenerator(
