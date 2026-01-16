@@ -113,7 +113,7 @@ class EventGenerator:
             matched = False
             for i, tone in enumerate(self.active_tones):
                 if abs(peak.frequency - tone.frequency) < self.frequency_tolerance:
-                    # Update frequency tracking (Elite feature)
+                    # 2. Track frequency history/smoothing
                     tone.frequency = (
                         1.0 - self.freq_smoothing
                     ) * tone.frequency + self.freq_smoothing * peak.frequency
