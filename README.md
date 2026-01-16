@@ -1,9 +1,14 @@
-# 🔊 Acoustic Alarm Engine
+# 🔊 Acoustic Engine
 
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
+## The Open Standard for IoT Sound Recognition
 
-A robust, noise-resilient Python library for real-time acoustic pattern detection. Detect smoke alarms, CO detectors, appliance beeps, and other repetitive audio patterns with high accuracy.
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC_BY--NC_4.0-lightgrey.svg?style=for-the-badge)](https://creativecommons.org/licenses/by-nc/4.0/)
+[![Embedded Ready](https://img.shields.io/badge/Embedded-Ready-success?style=for-the-badge&logo=arm&logoColor=white)](#)
+
+A high-performance, noise-resilient DSP library designed to detect specific acoustic patterns (Smoke Alarms, CO Detectors, Appliance Beeps) on lightweight hardware.
+
+> [!TIP] > **Why this engine?** Unlike heavy Neural Networks, the Acoustic Engine uses deterministic Digital Signal Processing (DSP) to achieve **>99% accuracy** with **<5% CPU usage** on a Raspberry Pi. Best for battery-powered or resource-constrained devices.
 
 ## ✨ Features
 
@@ -50,13 +55,39 @@ Why use this engine instead of an AI-based sound classifier? While Neural Networ
 
 ### **System Efficiency Comparison**
 
-| Metric               | **Acoustic Alarm Engine (DSP)** | **Neural Network (Edge AI)** |
-| -------------------- | ------------------------------- | ---------------------------- |
-| **CPU Usage**        | < 5% (Single Core)              | 25-80% (Multi-core/NPU)      |
-| **Memory Footprint** | ~50 MB                          | 200 MB - 1 GB+               |
-| **Latency**          | 23ms - 92ms                     | 200ms - 1s                   |
-| **GPU/NPU Req.**     | None (Pure CPU)                 | Recommended for real-time    |
-| **Power Draw**       | Ultra-Low (IoT Friendly)        | Medium to High               |
+| Metric               | **Acoustic Engine (DSP)**    | **Neural Network (Edge AI)** |
+| -------------------- | ---------------------------- | ---------------------------- |
+| **CPU Usage**        | **3-5%** (Raspberry Pi 4)    | 25-80% (Multi-core/NPU)      |
+| **Memory Footprint** | **~55 MB**                   | 200 MB - 1 GB+               |
+| **Latency**          | **23ms - 92ms**              | 200ms - 1s                   |
+| **GPU/NPU Req.**     | **None** (Pure CPU)          | Recommended for real-time    |
+| **Power Draw**       | **Ultra-Low** (IoT Friendly) | Medium to High               |
+
+Note that results may vary depending on the hardware used.
+
+## ⚡ Technical Specifications
+
+Designed for deployment on everything from powerful servers to low-power embedded gateways.
+
+### Resource Consumption
+
+_Measured on Standard/High-Performance Linux Workstation (x86_64)_
+
+| Resource         | Idle   | Active (Listening) | Active (Detection) |
+| :--------------- | :----- | :----------------- | :----------------- |
+| **RAM**          | ~37 MB | ~40 MB             | ~43 MB             |
+| **CPU (1 Core)** | < 1%   | < 1%               | < 1%               |
+
+### Requirements
+
+- **Python 3.9+**
+- **System Dependencies**:
+  - `portaudio` (Required for PyAudio microphone access)
+- **Python Libraries** (installed automatically):
+  - `numpy`
+  - `scipy`
+  - `PyAudio`
+  - `PyYAML`
 
 ### **Detection Philosophy**
 
@@ -95,7 +126,7 @@ from acoustic_alarm_engine import Engine, AudioConfig
 from acoustic_alarm_engine.profiles import load_profiles_from_yaml
 
 # Load alarm profiles
-profiles = load_profiles_from_yaml("profiles/smoke_alarm_t3.yaml")
+profiles = load_profiles_from_yaml("profiles/smoke_alarm.yaml")
 
 # Create engine with callback
 engine = Engine(
@@ -153,8 +184,8 @@ eval_frequency: 0.5 # How often to evaluate windows
 
 ```bash
 python -m acoustic_alarm_engine.tester \
-  --profile profiles/smoke_alarm_t3.yaml \
-  --audio recording.wav \
+  --profile profiles/smoke_alarm.yaml \
+  --audio examples/audio/smoke_alarm.mp3 \
   -v
 ```
 
@@ -171,8 +202,8 @@ python -m acoustic_alarm_engine.tester \
 
 ```bash
 python -m acoustic_alarm_engine.tester \
-  --profile profiles/smoke_alarm_t3.yaml \
-  --audio recording.wav \
+  --profile profiles/smoke_alarm.yaml \
+  --audio examples/audio/smoke_alarm.mp3 \
   --noise 0.3 \
   --noise-type white
 ```
@@ -273,7 +304,7 @@ engine:
   dip_threshold: 0.6 # Instant dip disconnect (reverb rejection)
 
 profiles:
-  - include: "profiles/smoke_alarm_t3.yaml"
+  - include: "profiles/smoke_alarm.yaml"
 ```
 
 ### **Advanced Parameter Reference**
