@@ -50,8 +50,9 @@ htmlcov/
 *.mp3
 *.ogg
 *.flac
-!examples/*.wav
-!examples/*.mp3
+examples/audio/*.wav
+examples/audio/*.mp3
+examples/audio/*.m4a
 
 # OS files
 .DS_Store
