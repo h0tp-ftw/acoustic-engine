@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 # Default resolution values
 DEFAULT_MIN_TONE_DURATION = 0.04  # seconds (requires ~2 chunks to confirm)
 DEFAULT_DROPOUT_TOLERANCE = 0.03  # seconds (tolerates 1 missing chunk)
+DEFAULT_MIN_MAGNITUDE = 10.0  # Threshold for peak detection
 
 # High-resolution preset values
 HIGHRES_MIN_TONE_DURATION = 0.05  # 50ms
@@ -134,7 +135,7 @@ class EngineConfig:
     chunk_size: int = 1024
     min_tone_duration: float = DEFAULT_MIN_TONE_DURATION
     dropout_tolerance: float = DEFAULT_DROPOUT_TOLERANCE
-    min_magnitude: float = 10.0  # Threshold for peak detection
+    min_magnitude: float = DEFAULT_MIN_MAGNITUDE  # Threshold for peak detection
 
     # Advanced DSP
     min_sharpness: float = 1.5
@@ -186,6 +187,76 @@ class EngineConfig:
             chunk_size=chunk_size,
             min_tone_duration=min_tone,
             dropout_tolerance=dropout,
+        )
+
+    @classmethod
+    def from_single_profile(
+        cls,
+        profile: AlarmProfile,
+        sample_rate: int = 44100,
+        chunk_size: int = 1024,
+    ) -> "EngineConfig":
+        """Create an EngineConfig tailored for a SINGLE profile.
+
+        Used in parallel pipeline architectures where each profile gets its own engine.
+
+        Args:
+            profile: The single AlarmProfile object.
+            sample_rate: Audio sample rate.
+            chunk_size: FFT chunk size.
+
+        Returns:
+            EngineConfig with resolution settings matching the profile.
+        """
+        # Default requirements
+        min_tone = DEFAULT_MIN_TONE_DURATION
+        dropout = DEFAULT_DROPOUT_TOLERANCE
+
+        # Override if profile has specific requirements
+        if profile.resolution:
+            min_tone = profile.resolution.min_tone_duration
+            dropout = profile.resolution.dropout_tolerance
+
+        # Adaptive chunk size for high resolution
+        target_min_mag = DEFAULT_MIN_MAGNITUDE
+
+        if min_tone < 0.05 or dropout < 0.05:
+            # For very fast patterns, ensure chunk size isn't too large
+            # 1024 samples @ 44.1kHz is ~23ms, which is fine for 50ms events.
+            chunk_size = min(chunk_size, 1024)
+
+        # Scale min_magnitude based on chunk size reduction relative to standard (4096)
+        # FFT magnitude is proportional to N. If we use smaller N, we need smaller threshold.
+        # Reference: N=4096, Threshold=DEFAULT_MIN_MAGNITUDE
+        if chunk_size < 4096:
+            scale_factor = chunk_size / 4096.0
+            target_min_mag = DEFAULT_MIN_MAGNITUDE * scale_factor
+            # Avoid going too low (noise floor)
+            target_min_mag = max(target_min_mag, 1.0)
+
+            # Also scale frequency_tolerance UP
+            # Smaller N = wider bins = more jitter.
+            # 4096 -> ~10Hz bins. 1024 -> ~43Hz bins.
+            # Scale tolerance inversely to chunks size (approx)
+            bin_ratio = 4096.0 / chunk_size
+            # Base tolerance 50.0 (covering ~5 bins at 4096).
+            # For 1024, we need ~150-200.
+            # Let's scale by sqrt(bin_ratio) or linear?
+            # Linear bin width growth -> Linear tolerance growth?
+            # 50 * 4 = 200Hz. This might be too wide, but needed if jitter is >86Hz.
+            # Let's try scaling max.
+            target_freq_tol = 50.0 * (4096.0 / chunk_size)  # Full linear scaling = 200Hz
+
+        else:
+            target_freq_tol = 50.0
+
+        return cls(
+            sample_rate=sample_rate,
+            chunk_size=chunk_size,
+            min_tone_duration=min_tone,
+            dropout_tolerance=dropout,
+            min_magnitude=target_min_mag,
+            frequency_tolerance=target_freq_tol,
         )
 
     @classmethod

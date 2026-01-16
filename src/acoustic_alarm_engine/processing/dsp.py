@@ -94,7 +94,7 @@ class SpectralMonitor:
             return []
 
         # Normalize and window
-        float_chunk = audio_chunk.astype(np.float32) / 32768.0
+        float_chunk = audio_chunk.astype(np.float32)  # Windowing
         windowed = float_chunk * self.window
 
         # FFT
