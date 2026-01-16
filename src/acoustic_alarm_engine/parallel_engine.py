@@ -8,7 +8,7 @@ impact others (e.g. CO).
 
 import logging
 import threading
-from typing import Callable, List, Optional, Dict
+from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -30,7 +30,7 @@ class ParallelEngine:
 
     def __init__(
         self,
-        profiles: List[AlarmProfile],
+        pipelines: List[Union[AlarmProfile, Tuple[AlarmProfile, EngineConfig]]],
         audio_config: Optional[AudioSettings] = None,
         on_detection: Optional[Callable[[str], None]] = None,
         on_match: Optional[Callable[[PatternMatchEvent], None]] = None,
@@ -38,12 +38,14 @@ class ParallelEngine:
         """Initialize the parallel engine.
 
         Args:
-            profiles: List of AlarmProfile patterns to detect.
-            audio_config: Audio capture settings.
+            pipelines: List of items to run. Can be:
+                      - AlarmProfile: Will auto-generate a config for this profile.
+                      - (AlarmProfile, EngineConfig): Will use the provided config.
+            audio_config: Master audio capture settings.
             on_detection: Aggregated simple callback.
             on_match: Aggregated detailed callback.
         """
-        self.profiles = profiles
+        self.pipelines = pipelines
         self.audio_config = audio_config or AudioSettings()
         self.on_detection = on_detection
         self.on_match = on_match
@@ -51,22 +53,26 @@ class ParallelEngine:
         # Create isolated engine instances for each profile
         self.engines: List[Engine] = []
 
-        logger.info(f"Initializing ParallelEngine with {len(profiles)} pipelines:")
+        logger.info(f"Initializing ParallelEngine with {len(pipelines)} pipelines:")
 
-        for profile in profiles:
-            # Create a bespoke config for this specific profile
-            engine_config = EngineConfig.from_single_profile(
-                profile,
-                sample_rate=self.audio_config.sample_rate,
-                chunk_size=self.audio_config.chunk_size,  # Will be adjusted by from_single_profile if needed
-            )
+        for item in pipelines:
+            if isinstance(item, AlarmProfile):
+                profile = item
+                # Create a bespoke config for this specific profile
+                engine_config = EngineConfig.from_single_profile(
+                    profile,
+                    sample_rate=self.audio_config.sample_rate,
+                    chunk_size=self.audio_config.chunk_size,
+                )
+            else:
+                # Explicit config provided
+                profile, engine_config = item
 
             logger.info(
-                f"  - Pipeline '{profile.name}': dropout={engine_config.dropout_tolerance:.3f}s, min_tone={engine_config.min_tone_duration:.3f}s"
+                f"  - Pipeline '{profile.name}': dropout={engine_config.dropout_tolerance:.3f}s, min_tone={engine_config.min_tone_duration:.3f}s, sensitivity={engine_config.min_magnitude:.1f}"
             )
 
             # Create the engine instance
-            # We wrap the callbacks to pass them through
             engine = Engine(
                 profiles=[profile],  # Single profile per engine
                 audio_config=self.audio_config,  # Shared audio settings
