@@ -11,15 +11,14 @@ Usage:
 """
 
 import argparse
-import sys
 import logging
+import sys
 from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from acoustic_alarm_engine import Engine, AudioConfig, EngineConfig
-from acoustic_alarm_engine.profiles import load_profiles_from_yaml
+from acoustic_alarm_engine.config import DEFAULT_DROPOUT_TOLERANCE, DEFAULT_MIN_TONE_DURATION
 from acoustic_alarm_engine.tester.display import Display
 from acoustic_alarm_engine.tester.runner import TestRunner
 
@@ -51,7 +50,7 @@ def main():
         sys.exit(1)
 
     print("=" * 60)
-    print(f"🧪 VERIFY PROFILE")
+    print("🧪 VERIFY PROFILE")
     print(f"   Audio:   {audio_path.name}")
     print(f"   Profile: {profile_path.name}")
     print("=" * 60)
@@ -63,9 +62,7 @@ def main():
         logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     # Load defaults
-    engine_config = EngineConfig.standard()
     if args.high_res:
-        chunk_size = 512  # ~11.6ms chunks
         min_tone_duration = 0.02  # 20ms minimum
         dropout_tolerance = args.dropout if args.dropout else 0.04  # Default 40ms, or user override
         print(f"ℹ️  Using High-Resolution Mode (Dropout: {dropout_tolerance}s)")

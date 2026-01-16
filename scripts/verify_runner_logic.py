@@ -1,7 +1,9 @@
 import os
+
 import numpy as np
 import scipy.io.wavfile as wavfile
 import yaml
+
 from acoustic_alarm_engine.config import GlobalConfig
 
 
@@ -113,7 +115,6 @@ def run_verification():
     # For this verification script, let's just use the `runner.py` logic directly by importing it or
     # mocking the args. simpler: we reconstruct the runner logic here to verify it.
 
-    from acoustic_alarm_engine.runner import main
 
     # We'll monkeypatch argparse or sys.argv
     import sys
@@ -137,7 +138,6 @@ def run_verification():
     # Verify via subprocess output analysis? No, might hang.
     # Let's do a logic check.
 
-    from acoustic_alarm_engine.config import GlobalConfig
 
     c1 = GlobalConfig.load("verify_smoke.yaml")
     c2 = GlobalConfig.load("verify_co.yaml")

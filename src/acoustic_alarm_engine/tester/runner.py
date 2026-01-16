@@ -8,16 +8,16 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 
-from ..processing.dsp import SpectralMonitor
-from ..events import PatternMatchEvent, ToneEvent
-from ..processing.filter import FrequencyFilter
 from ..analysis.generator import EventGenerator
+from ..analysis.windowed_matcher import WindowedMatcher
+from ..config import DEFAULT_DROPOUT_TOLERANCE, DEFAULT_MIN_TONE_DURATION, AudioSettings
+from ..events import PatternMatchEvent, ToneEvent
 from ..models import AlarmProfile
+from ..processing.dsp import SpectralMonitor
+from ..processing.filter import FrequencyFilter
 from ..profiles import load_profiles_from_yaml
 from .display import Display
 from .mixer import AudioMixer
-from ..analysis.windowed_matcher import WindowedMatcher
-from ..config import DEFAULT_MIN_TONE_DURATION, DEFAULT_DROPOUT_TOLERANCE, AudioSettings
 
 
 @dataclass

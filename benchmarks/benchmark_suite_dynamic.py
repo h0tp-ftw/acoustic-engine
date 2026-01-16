@@ -13,19 +13,17 @@ import logging
 import os
 import sys
 import tempfile
-import time
 from pathlib import Path
-from typing import List, Tuple
+
 import numpy as np
 from scipy.io import wavfile
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from acoustic_alarm_engine.models import AlarmProfile, Range, Segment
 from acoustic_alarm_engine.tester.display import Display
 from acoustic_alarm_engine.tester.runner import TestRunner
-from acoustic_alarm_engine.models import AlarmProfile, Segment, Range
-from acoustic_alarm_engine.config import EngineConfig
 
 # Setup logging
 logging.basicConfig(level=logging.ERROR)

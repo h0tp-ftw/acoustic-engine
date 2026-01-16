@@ -7,13 +7,12 @@ Tests complex environmental challenges:
 3. Frequency Drifts (Sweeping Tones)
 """
 
-import logging
 import os
 import sys
 import tempfile
 from pathlib import Path
+
 import numpy as np
-from scipy.io import wavfile
 
 # Add current dir and src to path
 current_dir = Path(__file__).parent
@@ -21,6 +20,7 @@ sys.path.insert(0, str(current_dir))
 sys.path.insert(0, str(current_dir.parent / "src"))
 
 from benchmark_suite import AudioGenerator, create_t3_profile
+
 from acoustic_alarm_engine.tester.display import Display
 from acoustic_alarm_engine.tester.runner import TestRunner
 

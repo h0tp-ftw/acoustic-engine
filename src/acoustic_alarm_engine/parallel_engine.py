@@ -12,8 +12,8 @@ from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
 
-from .engine import Engine
 from .config import AudioSettings, EngineConfig, GlobalConfig
+from .engine import Engine
 from .events import PatternMatchEvent
 from .input.listener import AudioListener
 from .models import AlarmProfile

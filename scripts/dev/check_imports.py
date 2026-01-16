@@ -1,7 +1,6 @@
+import importlib
 import os
 import sys
-import importlib
-import traceback
 
 
 def check_imports():

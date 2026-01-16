@@ -10,7 +10,6 @@ import os
 import sys
 import tempfile
 from pathlib import Path
-from typing import List, Tuple
 
 import numpy as np
 from scipy.io import wavfile

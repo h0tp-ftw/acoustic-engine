@@ -1,7 +1,7 @@
-import os
-import sys
 import ast
 import importlib.util
+import os
+import sys
 
 
 def check_managed_imports():

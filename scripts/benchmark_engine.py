@@ -1,9 +1,11 @@
-import time
 import os
-import psutil
-import numpy as np
 import threading
-from acoustic_alarm_engine import Engine, AudioConfig
+import time
+
+import numpy as np
+import psutil
+
+from acoustic_alarm_engine import AudioConfig, Engine
 from acoustic_alarm_engine.profiles import load_profiles_from_yaml
 
 

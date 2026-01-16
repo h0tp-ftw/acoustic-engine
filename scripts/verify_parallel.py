@@ -1,15 +1,15 @@
-import sys
 import logging
-from pathlib import Path
-import numpy as np
+import sys
 import wave
+from pathlib import Path
+
+import numpy as np
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from acoustic_alarm_engine.parallel_engine import ParallelEngine
 from acoustic_alarm_engine.profiles import load_profiles_from_yaml
-from acoustic_alarm_engine.config import AudioSettings
 
 # Configure logging
 logging.basicConfig(

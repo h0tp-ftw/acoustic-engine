@@ -16,18 +16,18 @@ __version__ = "1.0.0"
 __author__ = "Your Name"
 
 # Core exports
+from .analysis.event_buffer import EventBuffer
+from .analysis.windowed_matcher import WindowedMatcher
 from .config import EngineConfig, compute_finest_resolution
 from .engine import Engine
-from .analysis.event_buffer import EventBuffer
-from .processing.filter import FrequencyFilter
 from .input.listener import AudioConfig, AudioListener
 from .models import AlarmProfile, Range, ResolutionConfig, Segment
+from .processing.filter import FrequencyFilter
 from .profiles import (
     load_profile_from_yaml,
     load_profiles_from_yaml,
     save_profile_to_yaml,
 )
-from .analysis.windowed_matcher import WindowedMatcher
 
 __all__ = [
     # Version

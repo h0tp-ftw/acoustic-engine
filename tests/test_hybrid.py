@@ -1,9 +1,11 @@
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path.cwd() / "src"))
 
-from acoustic_alarm_engine.tester.runner import TestRunner
 from acoustic_alarm_engine.tester.display import Display
+from acoustic_alarm_engine.tester.runner import TestRunner
+
 
 def run_test(profile, audio, chunk, dropout):
     print(f"\n--- Testing {profile} with chunk={chunk}, dropout={dropout} ---")
@@ -18,9 +20,9 @@ def run_test(profile, audio, chunk, dropout):
     # Manually set the tighter thresholds we want for high-res
     runner.generator.dropout_tolerance = dropout
     runner.generator.min_tone_duration = 0.02
-    
+
     print(f"Generator config: chunk={runner.generator.chunk_size}, dropout={runner.generator.dropout_tolerance}")
-    
+
     runner.run_file(Path(audio))
     runner.show_results()
 

@@ -6,7 +6,6 @@ alarm patterns from microphone input.
 """
 
 import logging
-
 import sys
 from pathlib import Path
 

@@ -2,8 +2,8 @@
 
 from typing import List, Optional, Tuple
 
-from .dsp import Peak
 from ..models import AlarmProfile
+from .dsp import Peak
 
 
 class FrequencyFilter:

@@ -14,13 +14,14 @@ import logging
 import sys
 import time
 from typing import List, Tuple
+
 import numpy as np
 
 # Adjust path to import engine
 sys.path.append("src")
-from acoustic_alarm_engine.engine import Engine
-from acoustic_alarm_engine.models import AlarmProfile, Segment, Range, ResolutionConfig
 from acoustic_alarm_engine.config import EngineConfig
+from acoustic_alarm_engine.engine import Engine
+from acoustic_alarm_engine.models import AlarmProfile, Range, Segment
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -150,7 +151,7 @@ def run_benchmark():
 if __name__ == "__main__":
     try:
         run_benchmark()
-    except Exception as e:
+    except Exception:
         import traceback
 
         traceback.print_exc()

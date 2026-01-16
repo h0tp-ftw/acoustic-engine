@@ -5,10 +5,10 @@ import sys
 
 sys.path.insert(0, "src")
 
-from acoustic_alarm_engine.event_buffer import EventBuffer
+from acoustic_alarm_engine.analysis.event_buffer import EventBuffer
 from acoustic_alarm_engine.events import ToneEvent
 from acoustic_alarm_engine.profiles import load_profiles_from_yaml
-from acoustic_alarm_engine.windowed_matcher import WindowedMatcher
+from acoustic_alarm_engine.analysis.windowed_matcher import WindowedMatcher
 
 
 def test_basic_imports():
@@ -67,7 +67,7 @@ def test_windowed_matcher():
 def test_engine_with_windowed_matcher():
     """Test that Engine uses WindowedMatcher."""
     from acoustic_alarm_engine.engine import Engine
-    from acoustic_alarm_engine.windowed_matcher import WindowedMatcher
+    from acoustic_alarm_engine.analysis.windowed_matcher import WindowedMatcher
 
     profiles = load_profiles_from_yaml("profiles/smoke_alarm_t3.yaml")
     engine = Engine(profiles=profiles)

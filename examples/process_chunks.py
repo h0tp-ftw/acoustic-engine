@@ -8,10 +8,10 @@ useful for:
 - Testing and simulation
 """
 
-import numpy as np
-
 import sys
 from pathlib import Path
+
+import numpy as np
 
 # Add src to path to allow running without installation
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
