@@ -32,6 +32,9 @@ def main():
     parser.add_argument(
         "--high-res", action="store_true", help="Enable high-resolution analysis (11ms chunks)"
     )
+    parser.add_argument(
+        "--dropout", type=float, help="Override dropout tolerance (e.g. 0.1 for 100ms)"
+    )
 
     args = parser.parse_args()
 
@@ -62,8 +65,13 @@ def main():
     # Load defaults
     engine_config = EngineConfig.standard()
     if args.high_res:
-        engine_config = EngineConfig.high_resolution()
-        print("ℹ️  Using High-Resolution Mode")
+        chunk_size = 512  # ~11.6ms chunks
+        min_tone_duration = 0.02  # 20ms minimum
+        dropout_tolerance = args.dropout if args.dropout else 0.04  # Default 40ms, or user override
+        print(f"ℹ️  Using High-Resolution Mode (Dropout: {dropout_tolerance}s)")
+    else:
+        min_tone_duration = DEFAULT_MIN_TONE_DURATION
+        dropout_tolerance = args.dropout if args.dropout else DEFAULT_DROPOUT_TOLERANCE
 
     # Use TestRunner for nice output
     display = Display(verbose=args.verbose)
@@ -72,6 +80,8 @@ def main():
         verbose=args.verbose,
         display=display,
         high_resolution=args.high_res,
+        min_tone_duration=min_tone_duration,
+        dropout_tolerance=dropout_tolerance,
     )
 
     try:

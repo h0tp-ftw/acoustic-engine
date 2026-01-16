@@ -44,6 +44,8 @@ class TestRunner:
         chunk_size: Optional[int] = None,
         high_resolution: bool = False,
         min_magnitude: float = 0.05,
+        min_tone_duration: Optional[float] = None,
+        dropout_tolerance: Optional[float] = None,
     ):
         self.noise_level = noise_level
         self.noise_type = noise_type
@@ -55,16 +57,25 @@ class TestRunner:
         if chunk_size is None:
             chunk_size = AudioSettings().chunk_size
 
-        # High-resolution mode: smaller chunks and tighter tolerances
-        # for detecting fast patterns like T3/T4 alarms with <100ms gaps
+        # High-resolution mode defaults
         if high_resolution:
-            chunk_size = 512  # ~11.6ms chunks
-            min_tone_duration = 0.02  # 20ms minimum
-            dropout_tolerance = 0.04  # 40ms gap tolerance (allows ~3 noisy chunks)
-            self.display.info("High-resolution mode: 11ms chunks, 40ms dropout tolerance")
+            default_chunk = 512
+            default_min_dur = 0.02
+            default_dropout = 0.04
+            self.display.info("High-resolution mode enabled")
         else:
-            min_tone_duration = DEFAULT_MIN_TONE_DURATION
-            dropout_tolerance = DEFAULT_DROPOUT_TOLERANCE
+            default_chunk = None  # Use global default
+            default_min_dur = DEFAULT_MIN_TONE_DURATION
+            default_dropout = DEFAULT_DROPOUT_TOLERANCE
+
+        if high_resolution and chunk_size == AudioSettings().chunk_size:
+            chunk_size = 512
+
+        # Use provided values or defaults
+        min_tone_duration = min_tone_duration if min_tone_duration is not None else default_min_dur
+        dropout_tolerance = dropout_tolerance if dropout_tolerance is not None else default_dropout
+
+        self.display.info(f"Config: min_dur={min_tone_duration}s, dropout={dropout_tolerance}s")
 
         self.sample_rate = sample_rate
         self.chunk_size = chunk_size
