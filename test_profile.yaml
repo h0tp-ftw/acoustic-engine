@@ -1,0 +1,8 @@
+name: "TestAlarm"
+segments:
+  - type: tone
+    frequency: {min: 900, max: 1100}
+    duration: {min: 0.4, max: 0.6}
+  - type: silence
+    duration: {min: 0.4, max: 0.6}
+confirmation_cycles: 1

@@ -1,84 +1,68 @@
-# Benchmarking & Performance Results
+# 🧪 Acoustic Alarm Engine Benchmarks
 
-## Summary Table
+This directory contains a suite of rigorous tests designed to verify the engine's performance in varied, challenging environments.
 
-| Benchmark Type                 | Test Case        | Max Performance       | Result                |
-| :----------------------------- | :--------------- | :-------------------- | :-------------------- |
-| **Robustness (White Noise)**   | Standard T3      | **-14.0 dB SNR**      | ✅ Highly Robust      |
-| **Robustness (High Res)**      | Fast T4 (50ms)   | **-20.0 dB SNR**      | ✅ Extreme Robustness |
-| **Environmental (Pink Noise)** | Standard T3      | **-4.1 dB SNR** (80%) | ✅ Real-world Ready   |
-| **Advanced Reverb**            | 50% Decay Echo   | **✅ Detected**       | ✅ Industrial Grade   |
-| **Frequency Drift**            | 200Hz Sweep      | **✅ Tracked**        | ✅ Hardware Resilient |
-| **Alarm Collision**            | T3 vs T4 (Mixed) | **✅ Isolated**       | ✅ Chaotic-Mix Stable |
-| **Specificity (Time)**         | 0.3s vs 0.5s     | **0 False Positives** | ✅ Absolute Precision |
+## 🏃 Running Benchmarks
 
-## Interpretations
-
-### 1. Robustness (Stress Testing)
-
-The engine has been pushed to physics-breaking limits.
-
-- **Standard Mode** maintains lock until noise is 6x louder than the signal (-15.6dB).
-- **High-Res Mode** remains active even at **10x louder noise** (-20dB), proving that rapid spectral updates are superior for extreme conditions.
-
-### 2. Specificity (Positive Identification)
-
-Following a refined duration tolerance update (tightened to 0.75x min), the engine now strictly distinguishes between patterns:
-
-- **Wrong Frequency**: Completely rejected. The frequency filter effectively blocks out-of-band signals.
-- **Wrong Timing**: Previously a weak point, the engine now correctly rejects 0.2s beeps when expecting 0.5s, ensuring we only detect valid alarm types.
-- **Pure Noise**: Even at 500% amplitude, the engine generates zero phantom match events.
-
-## Scripts
-
-### 1. `benchmark_suite.py` (Standard White Noise)
-
-Standard regression test.
+Run all benchmarks (this may take several minutes):
 
 ```bash
 python3 benchmarks/benchmark_suite.py
-```
-
-### 2. `benchmark_suite_complex_noise.py` (Pink Noise)
-
-Realistic environmental rumble (HVAC, wind, traffic).
-
-```bash
-python3 benchmarks/benchmark_suite_complex_noise.py
-```
-
-### 3. `benchmark_suite_chaotic.py` (Spectral Chaos)
-
-Jamming-resistant test with random spectral envelopes.
-
-```bash
-python3 benchmarks/benchmark_suite_chaotic.py
-```
-
-### 4. `benchmark_suite_stress.py` (Negative Control)
-
-Pushes noise to -20dB SNR to find the breaking point.
-
-```bash
-python3 benchmarks/benchmark_suite_stress.py
-```
-
-### 5. `benchmark_suite_specificity.py` (False Positive Test)
-
-Ensures the engine only triggers on the _correct_ alarm.
-
-```bash
+python3 benchmarks/benchmark_suite_drone.py
+python3 benchmarks/benchmark_suite_dynamic.py
 python3 benchmarks/benchmark_suite_specificity.py
-```
-
-### 6. `benchmark_suite_edge_cases.py` (Reverb/Drift/Collision)
-
-Tests "Grandmaster" grade robustness features:
-
-- **Case 1**: Simulated Cathedral/Warehouse Echo (up to 85% decay).
-- **Case 2**: Piezo Frequency Drifting (simulating dying battery).
-- **Case 3**: Alarm Collision (Target vs Distractor patterns).
-
-```bash
 python3 benchmarks/benchmark_suite_edge_cases.py
 ```
+
+## 📊 Benchmark Suites
+
+### 1. Standard Regression (`benchmark_suite.py`)
+
+Tests the core detection logic against increasing levels of random white noise.
+
+- **Scenarios**: Standard T3 (Smoke), Fast T4 (CO).
+- **Goal**: Verify basic functionality remains intact.
+
+### 2. Drone Noise / Spectral Subtraction (`benchmark_suite_drone.py`)
+
+Tests the engine's ability to ignore loud, stationary noise sources like fans, motors, or HVAC systems.
+
+- **Mechanism**: Generates 5 loud "drone" tones (50% vol) and mixes them with a quiet alarm (30% vol).
+- **Success Criteria**: The engine must "learn" the drone tones are background noise (via Spectral Subtraction) and detect the alarm appearing _underneath_ them.
+
+### 3. Dynamic "Party" Noise (`benchmark_suite_dynamic.py`)
+
+Tests robustness in non-stationary, chaotic environments (e.g., a living room with TV, music, and conversation).
+
+- **Noise Types**:
+  - **Babble**: Multiple overlapping speech-like bands shifting frequency every 200ms.
+  - **Clatter**: High-frequency transient spikes (dishes, keys).
+- **Success Criteria**: Detect alarm even when SNR is negative (Noise > Alarm).
+
+### 4. Specificity / Negative Controls (`benchmark_suite_specificity.py`)
+
+**CRITICAL**: This suite ensures the engine does NOT trigger on false positives. It feeds the engine "imposter" sounds.
+
+- **Imposter Sounds**:
+  - Wrong Frequency (1500Hz vs 3000Hz)
+  - Wrong Timing (0.2s beeps vs 0.5s)
+  - Wrong Rhythm (2.0s gaps vs 0.5s)
+  - Pure Noise
+- **Success Criteria**: The engine must **REJECT** all of these sounds (0 matches).
+
+### 5. Edge Cases (`benchmark_suite_edge_cases.py`)
+
+Tests extreme physical acoustic challenges.
+
+- **Reverb**: Adds 30-85% reverb decay to simulate large warehouses.
+- **Frequency Drift**: Simulates a dying battery buzzer drifting from 3000Hz to 3200Hz.
+- **Collision**: (Currently Known Failure) Simulates two different alarms sounding simultaneously.
+
+## 🛠 How It Works
+
+Each benchmark script:
+
+1.  **Generates Synthetic Audio**: Uses `numpy` to create mathematically perfect signals mixed with calculated noise.
+2.  **Generates Temporary Profiles**: Creates a YAML profile specifically for that test (to ensure test isolation).
+3.  **Runs the Engine**: Feeds the generated WAV file into `TestRunner`.
+4.  **Asserts Results**: Checks if `len(detections) > 0` (or `== 0` for specificity tests).
