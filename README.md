@@ -47,6 +47,12 @@ The Acoustic Alarm Engine is engineered for "Grandmaster" grade durability in re
 - 🏭 **Industrial Warehouses**: Built-in echo rejection for high-reverb spaces.
 - 🍳 **Appliance Monitoring**: Differentiates between ovens, microwaves, and dishwashers.
 
+### **NOT Suited For:**
+
+- ❌ **Single / Lone Beeps**: A single 0.1s beep is too generic and will lead to false positives. The engine relies on _repetition_ (rhythm) for specificity.
+- ❌ **Complex Non-Tonal Sounds**: Dog barks, glass breaking, or speech. (Use a Neural Network for these).
+- ❌ **Variable Melodies**: Tunes that change notes every time (e.g., a complex musical doorbell).
+
 ---
 
 ## 🧠 Comparison: DSP vs Neural Networks
@@ -64,6 +70,85 @@ Why use this engine instead of an AI-based sound classifier? While Neural Networ
 | **Power Draw**       | **Ultra-Low** (IoT Friendly) | Medium to High               |
 
 Note that results may vary depending on the hardware used.
+
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+pip install acoustic-alarm-engine
+```
+
+Or from source:
+
+```bash
+git clone https://github.com/h0tp-ftw/acoustic-alarm-engine.git
+cd acoustic-alarm-engine
+pip install -e .
+```
+
+### Basic Usage
+
+```python
+from acoustic_alarm_engine import Engine, AudioConfig
+from acoustic_alarm_engine.profiles import load_profiles_from_yaml
+
+# Load alarm profiles
+profiles = load_profiles_from_yaml("profiles/smoke_alarm.yaml")
+
+# Create engine with callback
+engine = Engine(
+    profiles=profiles,
+    audio_config=AudioConfig(sample_rate=44100, chunk_size=4096),
+    on_detection=lambda name: print(f"🚨 ALARM: {name}")
+)
+
+# Start listening (blocking)
+engine.start()
+```
+
+## 📋 Alarm Profiles policy
+
+### **Recommended Workflow**
+
+To ensure reliable detection, do not rely on guessed timings or stock examples.
+
+1.  **One Sound = One Profile**: Create a dedicated YAML file for _each_ distinct alarm sound you want to detect.
+2.  **Record Real Audio**: Use the **Web Tuner** (`python -m acoustic_alarm_engine.tuner`) to record the _actual_ device you are targeting in its real environment.
+3.  **Verify**: Run the verification script against your recording before deploying:
+    ```bash
+    python scripts/verify_profile.py --audio my_recording.wav --profile my_profile.yaml
+    ```
+
+### Profile Schema
+
+Define patterns in YAML. **Note that this section is just a reference.** In production, you will embed these profiles directly into your main configuration file (see below).
+
+```yaml
+name: "SmokeAlarm_T3"
+confirmation_cycles: 2 # Require 2 complete cycles before triggering
+
+segments:
+  # Beep 1
+  - type: "tone"
+    frequency: { min: 2900, max: 3200 }
+    duration: { min: 0.4, max: 0.6 }
+
+  # Short pause
+  - type: "silence"
+    duration: { min: 0.1, max: 0.3 }
+
+  # Beep 2
+  - type: "tone"
+    frequency: { min: 2900, max: 3200 }
+    duration: { min: 0.4, max: 0.6 }
+
+  # Inter-cycle pause
+  - type: "silence"
+    duration: { min: 0.8, max: 1.5 }
+```
+
+---
 
 ## ⚡ Technical Specifications
 
@@ -100,6 +185,72 @@ _Measured on Standard/High-Performance Linux Workstation (x86_64)_
 | **Failing Hardware** | Trackable (via 200Hz drift)      | Often viewed as "Unknown"     |
 
 **The Verdict**: Use this engine for **specific, repetitive patterns** (alarms, beeps, machinery) where performance and reliability are critical. Use Neural Networks for **general semantic sounds** (shouting, glass breaking, dog barking) where the patterns are too irregular for mathematical modeling.
+
+---
+
+## ⚙️ Configuration & Parallel Execution
+
+The engine uses a **"One File per Runner"** philosophy. Instead of a complex, centralized "god config", you create a single, self-contained YAML file for each specific surveillance task (e.g., `smoke_alarm.yaml`, `co_sensor.yaml`).
+
+### 1. The Configuration File
+
+Each file completely defines the audio settings, engine sensitivity, and the alarm profile itself.
+
+```yaml
+# configs/smoke_alarm.yaml
+system:
+  log_level: "INFO"
+
+audio:
+  sample_rate: 44100
+  chunk_size: 1024
+
+engine:
+  min_magnitude: 10.0 # High sensitivity for smoke alarms
+  min_sharpness: 1.5
+
+profiles:
+  - name: "Smoke_T3"
+    confirmation_cycles: 2
+    segments:
+      # Pattern: Beep (0.5s) - Silence (0.5s) - Beep (0.5s) - Silence (0.5s) - Beep (0.5s) - Long Silence (1.5s)
+
+      # Beep 1
+      - type: "tone"
+        frequency: { min: 2800, max: 3200 }
+        duration: { min: 0.45, max: 0.55 }
+      - type: "silence"
+        duration: { min: 0.45, max: 0.55 }
+
+      # Beep 2
+      - type: "tone"
+        frequency: { min: 2800, max: 3200 }
+        duration: { min: 0.45, max: 0.55 }
+      - type: "silence"
+        duration: { min: 0.45, max: 0.55 }
+
+      # Beep 3
+      - type: "tone"
+        frequency: { min: 2800, max: 3200 }
+        duration: { min: 0.45, max: 0.55 }
+
+      # Inter-cycle pause (1.5s)
+      - type: "silence"
+        duration: { min: 1.2, max: 1.8 }
+```
+
+### 2. Running in Parallel
+
+You can run multiple independent detection tasks on the same device by providing multiple config files. The engine acts as a **Parallel Runner**, executing each configuration in complete isolation (besides sharing the microphone).
+
+```bash
+python -m acoustic_alarm_engine.runner \
+  --config configs/smoke_alarm.yaml \
+  --config configs/co_sensor.yaml
+```
+
+- **Smart Negotiation**: The system automatically scans all configs and selects the highest audio quality settings (e.g., 44.1kHz) to ensure all runners operate at peak fidelity.
+- **Total Isolation**: Adjusting the sensitivity in `smoke_alarm.yaml` has zero effect on the detection logic of `co_sensor.yaml`.
 
 ---
 
@@ -378,7 +529,7 @@ python test_windowed.py
 
 This project is licensed under the **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)**.
 
-- **Attribution**: You must give appropriate credit.
+- **Attribution**: You must give appropriate credit to me, @h0tp-ftw on github.com.
 - **Non-Commercial**: You may not use the material for commercial purposes.
 
 See [LICENSE](LICENSE) for the full text.
