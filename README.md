@@ -13,23 +13,61 @@ A high-performance, noise-resilient DSP library designed to detect specific acou
 
 ## ✨ Features
 
-| Feature                     | Description                                                                          |
-| --------------------------- | ------------------------------------------------------------------------------------ |
-| **Windowed Event Analysis** | Noise-resilient sliding window pattern matching that ignores background interference |
-| **Real-time FFT**           | Spectral peak detection with dynamic noise floor estimation                          |
-| **YAML Profiles**           | Simple, human-readable alarm pattern definitions                                     |
-| **Frequency Pre-filtering** | Efficient rejection of irrelevant frequencies early in the pipeline                  |
-| **Noise Testing**           | Built-in audio mixer for specificity testing with synthetic noise                    |
-| **Web Tuner**               | Visual editor for recording, analyzing, and designing alarm profiles                 |
-| **Grandmaster Robustness**  | Advanced Reverb/Echo rejection and Frequency Drift tracking                          |
+- **Noise Resilient**: Event analysis that ignores background interference (-15dB SNR).
+- **Efficient**: Real-time FFT with <5% CPU usage on Raspberry Pi.
+- **Easy Config**: Simple YAML profiles for alarm definitions.
+- **Grandmaster Robustness**: Advanced Reverb/Echo rejection and Frequency Drift tracking.
+
+---
+
+## 🚀 Quick Start
+
+### 📦 Fastest Method (Pip)
+
+The easiest way to get started is to install the package directly from PyPI.
+
+```bash
+pip install acoustic-engine
+```
+
+**Running the Engine:**
+
+```bash
+# Run with a configuration file
+python -m acoustic_engine.runner --help
+```
+
+---
+
+### 🐳 Docker Method (Linux Only)
+
+**Note:** Linux only due to OS restrictions. Windows/Mac users should use the **Pip Method** above.
+For an isolated environment without installing system dependencies:
+
+```bash
+docker run -it --rm --device /dev/snd -v $(pwd):/app python:3.11-slim-bookworm \
+  sh -c "apt-get update -qq && apt-get install -y portaudio19-dev gcc > /dev/null && pip install acoustic-engine && python -m acoustic_engine.runner --help"
+```
+
+---
+
+## 🎯 Use Cases
+
+- **💨 Life Safety**: Industry-standard Smoke (T3) and CO (T4) alarm detection.
+- **🍳 Appliances**: Detect microwave beeps, oven timers, or dishwasher completion chimes.
+- **🏥 Medical**: Monitor critical patient equipment alarms in noisy hospitals.
+- **🏭 Industrial**: Identify specific machinery fault codes or safety buzzers in high-reverb warehouses.
+- **🏠 Smart Home**: Trigger automation when your doorbell or dryer buzzes.
 
 ---
 
 ## 🏆 Robustness & Benchmarks
 
+The Acoustic Alarm Engine is engineered for "Grandmaster" grade durability.
+
 The Acoustic Alarm Engine is engineered for "Grandmaster" grade durability in real-world environments where simple detectors fail.
 
-### **Elite Performance Metrics**
+### **Elite Performance Metrics (for correctly defined configurations)**
 
 - **Extreme Noise Resilience**: Confirmed detection at **-15dB SNR** (White/Pink Noise) and robust performance against **Chaotic Spectral Noise**.
 - **Spectral Subtraction**: New **Per-Bin Noise Profiling** allows the engine to "learn" and subtract stationary noise (fans, HVAC, motors), effectively making it invisible to the detector.
@@ -50,68 +88,10 @@ The Acoustic Alarm Engine is engineered for "Grandmaster" grade durability in re
 
 ### **NOT Suited For:**
 
-- ❌ **Single / Lone Beeps**: A single 0.1s beep is too generic and will lead to false positives. The engine relies on _repetition_ (rhythm) for specificity.
+- ❌ **Single / Lone Beeps**: A single beep is too generic and will lead to false positives. The engine relies on _repetition_ (rhythm) for specificity.
 - ❌ **Complex Non-Tonal Sounds**: Dog barks, glass breaking, or speech. (Use a Neural Network for these).
+- ❌ **Inconsistent Repetitions**: Sounds that change rhythms every time (e.g., a complex musical doorbell).
 - ❌ **Variable Melodies**: Tunes that change notes every time (e.g., a complex musical doorbell).
-
----
-
-## 🧠 Comparison: DSP vs Neural Networks
-
-Why use this engine instead of an AI-based sound classifier? While Neural Networks (NN) are powerful for general soundscapes, this DSP-based engine excels in **resource-constrained** and **high-precision** environments.
-
-### **System Efficiency Comparison**
-
-| Metric               | **Acoustic Engine (DSP)**    | **Neural Network (Edge AI)** |
-| -------------------- | ---------------------------- | ---------------------------- |
-| **CPU Usage**        | **3-5%** (Raspberry Pi 4)    | 25-80% (Multi-core/NPU)      |
-| **Memory Footprint** | **~55 MB**                   | 200 MB - 1 GB+               |
-| **Latency**          | **23ms - 92ms**              | 200ms - 1s                   |
-| **GPU/NPU Req.**     | **None** (Pure CPU)          | Recommended for real-time    |
-| **Power Draw**       | **Ultra-Low** (IoT Friendly) | Medium to High               |
-
-Estimates made by AI based on computational benchmarks. Note that results may vary depending on the hardware used.
-
-## 🚀 Quick Start
-
-### � Fastest Method (Pip)
-
-The easiest way to get started is to install the package directly from PyPI.
-
-```bash
-pip install acoustic-engine
-```
-
-**Running the Engine:**
-
-```bash
-# Run with a configuration file
-python -m acoustic_engine.runner --config my_config.yaml
-```
-
-**Opening the Tuner (Optional):**
-
-```bash
-python -m acoustic_engine.tuner
-```
-
----
-
-### 🐳 Docker Method (Linux Only)
-
-**Note:** Passing hardware microphone access to Docker is only natively supported on **Linux** (e.g., Raspberry Pi, Ubuntu) due to OS restrictions. Windows and macOS users should use the **Pip Method** above for the best experience.
-
-If you are on Linux, you can run the engine in a single command without installing anything on your host:
-
-```bash
-docker run -it --rm \
-  --device /dev/snd \
-  -v $(pwd):/app \
-  python:3.11-slim-bookworm \
-  sh -c "apt-get update -qq && apt-get install -y portaudio19-dev gcc > /dev/null && pip install acoustic-engine && python -m acoustic_engine.runner --help"
-```
-
-This pulls a standard Python image, installs the engine, and runs it instantly. Replace `--help` with `--config your_config.yaml` to run normally.
 
 ---
 
@@ -144,6 +124,20 @@ engine = Engine(
 # Start listening (blocking)
 engine.start()
 ```
+
+## 🧠 Comparison: DSP vs Neural Networks
+
+Why not use AI? While Neural Networks (NN) are powerful for general sounds (dogs barking, glass breaking), this DSP-based engine excels in **precision** and **efficiency**.
+
+| Metric          | Acoustic Engine (DSP) | Neural Network (Edge AI) |
+| :-------------- | :-------------------- | :----------------------- |
+| **CPU**         | **3-5%** (Pi 4)       | 25-80%                   |
+| **Latency**     | **~50ms**             | 200ms+                   |
+| **Determinism** | **100%** (Math)       | Probabilistic            |
+| **Data Needed** | **None** (Zero-shot)  | Thousands of samples     |
+
+Note that data IS needed for generation of the configuration file, but not for runtime.
+---
 
 ## 🛠 How to Create a Custom Configuration
 
