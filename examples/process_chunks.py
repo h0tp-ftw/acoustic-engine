@@ -16,8 +16,8 @@ import numpy as np
 # Add src to path to allow running without installation
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from acoustic_alarm_engine import AudioConfig, Engine
-from acoustic_alarm_engine.models import AlarmProfile, Range, Segment
+from acoustic_engine import AudioConfig, Engine
+from acoustic_engine.models import AlarmProfile, Range, Segment
 
 
 def generate_tone(frequency: float, duration: float, sample_rate: int) -> np.ndarray:

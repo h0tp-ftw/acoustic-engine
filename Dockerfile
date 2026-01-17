@@ -31,4 +31,4 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY . .
 
 # Default command runs the help to show available options
-CMD ["python", "-m", "acoustic_alarm_engine.runner", "--help"]
+CMD ["python", "-m", "acoustic_engine.runner", "--help"]

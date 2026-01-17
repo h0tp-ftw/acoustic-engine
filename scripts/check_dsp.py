@@ -7,7 +7,7 @@ import numpy as np
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from acoustic_alarm_engine.processing.dsp import SpectralMonitor
+from acoustic_engine.processing.dsp import SpectralMonitor
 
 logging.basicConfig(level=logging.DEBUG)
 

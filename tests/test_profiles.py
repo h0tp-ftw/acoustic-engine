@@ -1,8 +1,8 @@
 """Tests for YAML profile loading."""
 
 
-from acoustic_alarm_engine.models import AlarmProfile, Range, Segment
-from acoustic_alarm_engine.profiles import (
+from acoustic_engine.models import AlarmProfile, Range, Segment
+from acoustic_engine.profiles import (
     load_profile_from_yaml,
     save_profile_to_yaml,
 )

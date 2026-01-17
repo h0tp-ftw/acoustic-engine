@@ -18,9 +18,9 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from acoustic_alarm_engine.config import DEFAULT_DROPOUT_TOLERANCE, DEFAULT_MIN_TONE_DURATION
-from acoustic_alarm_engine.tester.display import Display
-from acoustic_alarm_engine.tester.runner import TestRunner
+from acoustic_engine.config import DEFAULT_DROPOUT_TOLERANCE, DEFAULT_MIN_TONE_DURATION
+from acoustic_engine.tester.display import Display
+from acoustic_engine.tester.runner import TestRunner
 
 
 def main():

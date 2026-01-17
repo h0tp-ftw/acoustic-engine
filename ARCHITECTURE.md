@@ -28,7 +28,7 @@ These stages map directly to the package directory structure:
 The codebase is organized into functional modules:
 
 ```text
-src/acoustic_alarm_engine/
+src/acoustic_engine/
 ├── engine.py                 # Main orchestrator (Facade)
 ├── config.py                 # Configuration and factory methods
 ├── models.py                 # Core data structures (AlarmProfile, Segment)
@@ -163,7 +163,7 @@ Profiles define what the engine is looking for. They are typically loaded from Y
 The `Engine` class (`engine.py`) acts as the primary facade.
 
 ```python
-from acoustic_alarm_engine import Engine, GlobalConfig
+from acoustic_engine import Engine, GlobalConfig
 
 # 1. Load configuration
 config = GlobalConfig.load("config.yaml")

@@ -38,7 +38,7 @@ class Engine:
     The engine can be configured manually or loaded from a configuration file.
 
     Example:
-        >>> from acoustic_alarm_engine import Engine
+        >>> from acoustic_engine import Engine
         >>> engine = Engine.from_yaml("config.yaml")
         >>> engine.start()  # Blocking
     """

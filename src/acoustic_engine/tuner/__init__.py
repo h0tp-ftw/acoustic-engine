@@ -1,6 +1,6 @@
 """Web-based tuner for creating and testing alarm profiles.
 
-Run with: python -m acoustic_alarm_engine.tuner
+Run with: python -m acoustic_engine.tuner
 """
 
 import http.server

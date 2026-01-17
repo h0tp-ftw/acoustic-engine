@@ -5,8 +5,8 @@ import time
 import numpy as np
 import psutil
 
-from acoustic_alarm_engine import AudioConfig, Engine
-from acoustic_alarm_engine.profiles import load_profiles_from_yaml
+from acoustic_engine import AudioConfig, Engine
+from acoustic_engine.profiles import load_profiles_from_yaml
 
 
 def get_process_memory():

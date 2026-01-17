@@ -9,26 +9,26 @@ This demonstrates the workflow of:
 Run the tester from command line:
 
     # Basic test with audio file
-    python -m acoustic_alarm_engine.tester \
+    python -m acoustic_engine.tester \
         --profile profiles/smoke_alarm.yaml \
         --audio path/to/alarm_sample.wav
 
     # Test with white noise (30% level)
-    python -m acoustic_alarm_engine.tester \
+    python -m acoustic_engine.tester \
         --profile profiles/smoke_alarm.yaml \
         --audio path/to/alarm_sample.wav \
         --noise 0.3 \
         --noise-type white
 
     # Live microphone test
-    python -m acoustic_alarm_engine.tester \
+    python -m acoustic_engine.tester \
         --profile profiles/ \
         --live \
         --duration 60 \
         --verbose
 
     # Verbose mode shows every detected tone event
-    python -m acoustic_alarm_engine.tester \
+    python -m acoustic_engine.tester \
         --profile profiles/smoke_alarm.yaml \
         --audio path/to/alarm_sample.wav \
         -v
@@ -42,8 +42,8 @@ from pathlib import Path
 # Add src to path to allow running without installation
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from acoustic_alarm_engine.tester.display import Display
-from acoustic_alarm_engine.tester.runner import TestRunner
+from acoustic_engine.tester.display import Display
+from acoustic_engine.tester.runner import TestRunner
 
 
 def test_profile_with_audio(

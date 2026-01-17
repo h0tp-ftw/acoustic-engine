@@ -31,9 +31,9 @@ A circular time-indexed storage for events.
 ## 📋 usage
 
 ```python
-from acoustic_alarm_engine.analysis.generator import EventGenerator
-from acoustic_alarm_engine.analysis.windowed_matcher import WindowedMatcher
-from acoustic_alarm_engine.config import EngineConfig
+from acoustic_engine.analysis.generator import EventGenerator
+from acoustic_engine.analysis.windowed_matcher import WindowedMatcher
+from acoustic_engine.config import EngineConfig
 
 # Analysis requires an EngineConfig (for timing tolerances)
 config = EngineConfig(min_tone_duration=0.05, dropout_tolerance=0.05)

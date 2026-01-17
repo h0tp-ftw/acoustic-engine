@@ -14,14 +14,14 @@ import pytest
 sys.path.insert(0, "src")
 
 import numpy as np
-from acoustic_alarm_engine.processing.dsp import SpectralMonitor
-from acoustic_alarm_engine.processing.filter import FrequencyFilter
-from acoustic_alarm_engine.analysis.generator import EventGenerator
-from acoustic_alarm_engine.analysis.windowed_matcher import WindowedMatcher
+from acoustic_engine.processing.dsp import SpectralMonitor
+from acoustic_engine.processing.filter import FrequencyFilter
+from acoustic_engine.analysis.generator import EventGenerator
+from acoustic_engine.analysis.windowed_matcher import WindowedMatcher
 
-from acoustic_alarm_engine.events import ToneEvent
-from acoustic_alarm_engine.profiles import load_profiles_from_yaml
-from acoustic_alarm_engine.tester.mixer import AudioMixer
+from acoustic_engine.events import ToneEvent
+from acoustic_engine.profiles import load_profiles_from_yaml
+from acoustic_engine.tester.mixer import AudioMixer
 
 SAMPLE_RATE = 44100
 CHUNK_SIZE = 4096

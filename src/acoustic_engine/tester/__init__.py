@@ -1,6 +1,6 @@
 """Profile Tester - Test alarm profiles with the real engine.
 
-Run with: python -m acoustic_alarm_engine.tester
+Run with: python -m acoustic_engine.tester
 
 Features:
 - Load and test YAML profiles
@@ -46,8 +46,8 @@ def main(
 
         logging.basicConfig(level=logging.DEBUG, format="  %(message)s")
         # Enable debug logging for the matcher specifically
-        logging.getLogger("acoustic_alarm_engine.analysis.windowed_matcher").setLevel(logging.DEBUG)
-        logging.getLogger("acoustic_alarm_engine.analysis.generator").setLevel(logging.DEBUG)
+        logging.getLogger("acoustic_engine.analysis.windowed_matcher").setLevel(logging.DEBUG)
+        logging.getLogger("acoustic_engine.analysis.generator").setLevel(logging.DEBUG)
 
     display = Display(verbose=verbose)
 
@@ -118,19 +118,19 @@ def cli():
         epilog="""
 Examples:
   # Test a profile with an audio file
-  python -m acoustic_alarm_engine.tester --profile profiles/smoke_alarm.yaml --audio sample.wav
+  python -m acoustic_engine.tester --profile profiles/smoke_alarm.yaml --audio sample.wav
 
   # Continuous live mode (runs forever until Ctrl+C)
-  python -m acoustic_alarm_engine.tester --profile profiles/smoke_alarm.yaml --live
+  python -m acoustic_engine.tester --profile profiles/smoke_alarm.yaml --live
 
   # Live microphone test with time limit
-  python -m acoustic_alarm_engine.tester --profile profiles/ --live --duration 60
+  python -m acoustic_engine.tester --profile profiles/ --live --duration 60
 
   # Test with noise mixing
-  python -m acoustic_alarm_engine.tester --profile profiles/co_detector.yaml --audio sample.wav --noise 0.3 --noise-type white
+  python -m acoustic_engine.tester --profile profiles/co_detector.yaml --audio sample.wav --noise 0.3 --noise-type white
 
   # Verbose mode for debugging
-  python -m acoustic_alarm_engine.tester --profile profiles/smoke_alarm.yaml --audio sample.wav -v
+  python -m acoustic_engine.tester --profile profiles/smoke_alarm.yaml --audio sample.wav -v
         """,
     )
 

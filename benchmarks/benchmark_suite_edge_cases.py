@@ -21,8 +21,8 @@ sys.path.insert(0, str(current_dir.parent / "src"))
 
 from benchmark_suite import AudioGenerator, create_t3_profile
 
-from acoustic_alarm_engine.tester.display import Display
-from acoustic_alarm_engine.tester.runner import TestRunner
+from acoustic_engine.tester.display import Display
+from acoustic_engine.tester.runner import TestRunner
 
 
 class AdvancedAudioGenerator(AudioGenerator):

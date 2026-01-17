@@ -13,7 +13,7 @@ services:
       - /dev/snd:/dev/snd
     environment:
       - PYTHONUNBUFFERED=1
-    command: python -m acoustic_alarm_engine.runner --help
+    command: python -m acoustic_engine.runner --help
 
   # Service for the Web Tuner
   tuner:
@@ -28,7 +28,7 @@ services:
       - /dev/snd:/dev/snd
     environment:
       - PYTHONUNBUFFERED=1
-    command: python -m acoustic_alarm_engine.tuner
+    command: python -m acoustic_engine.tuner
 
   # Service for running tests
   tests:

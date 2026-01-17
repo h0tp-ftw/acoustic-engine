@@ -21,9 +21,9 @@ from scipy.io import wavfile
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from acoustic_alarm_engine.models import AlarmProfile, Range, Segment
-from acoustic_alarm_engine.tester.display import Display
-from acoustic_alarm_engine.tester.runner import TestRunner
+from acoustic_engine.models import AlarmProfile, Range, Segment
+from acoustic_engine.tester.display import Display
+from acoustic_engine.tester.runner import TestRunner
 
 # Setup logging
 logging.basicConfig(level=logging.ERROR)
@@ -144,7 +144,7 @@ def run_benchmark():
         ],
     )
 
-    from acoustic_alarm_engine.profiles import save_profiles_to_yaml
+    from acoustic_engine.profiles import save_profiles_to_yaml
 
     profile_path = os.path.join(temp_dir, "profile.yaml")
     save_profiles_to_yaml([profile], profile_path)

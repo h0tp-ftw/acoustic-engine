@@ -21,4 +21,4 @@ def check_braces(filename):
         print("All braces are balanced.")
 
 
-check_braces("/var/home/uwu/Documents/vscode/engine/src/acoustic_alarm_engine/tuner/styles.css")
+check_braces("/var/home/uwu/Documents/vscode/engine/src/acoustic_engine/tuner/styles.css")

@@ -3,8 +3,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path.cwd() / "src"))
 
-from acoustic_alarm_engine.tester.display import Display
-from acoustic_alarm_engine.tester.runner import TestRunner
+from acoustic_engine.tester.display import Display
+from acoustic_engine.tester.runner import TestRunner
 
 
 def run_test(profile, audio, chunk, dropout):

@@ -8,14 +8,14 @@ import numpy as np
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from acoustic_alarm_engine.parallel_engine import ParallelEngine
-from acoustic_alarm_engine.profiles import load_profiles_from_yaml
+from acoustic_engine.parallel_engine import ParallelEngine
+from acoustic_engine.profiles import load_profiles_from_yaml
 
 # Configure logging
 logging.basicConfig(
     level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
-logging.getLogger("acoustic_alarm_engine").setLevel(logging.DEBUG)
+logging.getLogger("acoustic_engine").setLevel(logging.DEBUG)
 logger = logging.getLogger("ParallelVerifier")
 
 

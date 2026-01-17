@@ -19,9 +19,9 @@ import numpy as np
 
 # Adjust path to import engine
 sys.path.append("src")
-from acoustic_alarm_engine.config import EngineConfig
-from acoustic_alarm_engine.engine import Engine
-from acoustic_alarm_engine.models import AlarmProfile, Range, Segment
+from acoustic_engine.config import EngineConfig
+from acoustic_engine.engine import Engine
+from acoustic_engine.models import AlarmProfile, Range, Segment
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")

@@ -18,7 +18,7 @@ The engine supports three primary modes of operation, depending on your hardware
 - **Usage**:
 
   ```python
-  from acoustic_alarm_engine import Engine, load_profiles_from_yaml
+  from acoustic_engine import Engine, load_profiles_from_yaml
 
   profiles = load_profiles_from_yaml("all_profiles.yaml")
   engine = Engine(profiles=profiles)
@@ -37,8 +37,8 @@ The engine supports three primary modes of operation, depending on your hardware
 - **Usage**:
 
   ```python
-  from acoustic_alarm_engine.parallel_engine import ParallelEngine
-  from acoustic_alarm_engine.models import AlarmProfile
+  from acoustic_engine.parallel_engine import ParallelEngine
+  from acoustic_engine.models import AlarmProfile
 
   # Load profiles
   smoke_profile = ...

@@ -17,8 +17,8 @@ from scipy.io import wavfile
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from acoustic_alarm_engine.tester.display import Display
-from acoustic_alarm_engine.tester.runner import TestRunner
+from acoustic_engine.tester.display import Display
+from acoustic_engine.tester.runner import TestRunner
 
 # Configure logging to only show critical errors during benchmark to keep output clean
 logging.basicConfig(level=logging.ERROR)

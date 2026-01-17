@@ -4,8 +4,8 @@ A standalone library for detecting acoustic alarm patterns including
 smoke alarms, CO detectors, appliance beeps, and other repetitive sounds.
 
 Usage:
-    from acoustic_alarm_engine import Engine, AudioConfig
-    from acoustic_alarm_engine.profiles import load_profiles_from_yaml
+    from acoustic_engine import Engine, AudioConfig
+    from acoustic_engine.profiles import load_profiles_from_yaml
 
     profiles = load_profiles_from_yaml("smoke_alarm.yaml")
     engine = Engine(profiles, AudioConfig(), on_detection=print)

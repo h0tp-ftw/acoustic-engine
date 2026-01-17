@@ -1,6 +1,6 @@
 """Tests for core models."""
 
-from acoustic_alarm_engine.models import AlarmProfile, Range, Segment
+from acoustic_engine.models import AlarmProfile, Range, Segment
 
 
 class TestRange:

@@ -1,6 +1,6 @@
 """Entry point for running the tuner as a module.
 
-Usage: python -m acoustic_alarm_engine.tuner
+Usage: python -m acoustic_engine.tuner
 """
 
 from . import main

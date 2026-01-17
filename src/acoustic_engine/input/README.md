@@ -15,8 +15,8 @@ The primary component of this module. It manages the lifecycle of an audio strea
 ## 📋 usage
 
 ```python
-from acoustic_alarm_engine.input.listener import AudioListener
-from acoustic_alarm_engine.config import AudioSettings
+from acoustic_engine.input.listener import AudioListener
+from acoustic_engine.config import AudioSettings
 
 def my_callback(audio_chunk):
     # audio_chunk is a numpy array of int16 samples

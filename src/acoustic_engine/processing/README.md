@@ -25,8 +25,8 @@ The engine's first line of defense against false positives.
 ## 📋 Usage
 
 ```python
-from acoustic_alarm_engine.processing.dsp import SpectralMonitor
-from acoustic_alarm_engine.processing.filter import FrequencyFilter
+from acoustic_engine.processing.dsp import SpectralMonitor
+from acoustic_engine.processing.filter import FrequencyFilter
 
 # Setup DSP
 monitor = SpectralMonitor(sample_rate=44100, chunk_size=1024)

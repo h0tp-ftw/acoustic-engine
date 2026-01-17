@@ -12,8 +12,8 @@ from pathlib import Path
 # Add src to path to allow running without installation
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from acoustic_alarm_engine import AudioConfig, Engine
-from acoustic_alarm_engine.profiles import load_profiles_from_yaml
+from acoustic_engine import AudioConfig, Engine
+from acoustic_engine.profiles import load_profiles_from_yaml
 
 # Configure logging
 logging.basicConfig(

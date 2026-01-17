@@ -83,28 +83,28 @@ Avoid installing system dependencies manually by using Docker.
 docker-compose run tests
 
 # Run the Engine (Note: Requires Linux host for /dev/snd access)
-docker-compose run engine python -m acoustic_alarm_engine.runner --config configs/smoke_alarm.yaml
+docker-compose run engine python -m acoustic_engine.runner --config configs/smoke_alarm.yaml
 ```
 
 ### Python Setup
 
 ```bash
-pip install acoustic-alarm-engine
+pip install acoustic-engine
 ```
 
 Or from source:
 
 ```bash
-git clone https://github.com/h0tp-ftw/acoustic-alarm-engine.git
-cd acoustic-alarm-engine
+git clone https://github.com/h0tp-ftw/acoustic-engine.git
+cd acoustic-engine
 pip install -e .
 ```
 
 ### Basic Usage
 
 ```python
-from acoustic_alarm_engine import Engine, AudioConfig
-from acoustic_alarm_engine.profiles import load_profiles_from_yaml
+from acoustic_engine import Engine, AudioConfig
+from acoustic_engine.profiles import load_profiles_from_yaml
 
 # Load alarm profiles
 profiles = load_profiles_from_yaml("profiles/smoke_alarm.yaml")
@@ -137,7 +137,7 @@ The [Web Tuner](https://github.com/h0tp-ftw/acoustic-engine) allows you to visua
 ### 3. Test the Configuration 
 
 # Live testing (uses default microphone)
-python -m acoustic_alarm_engine.runner --config configs/my_custom_alarm.yaml
+python -m acoustic_engine.runner --config configs/my_custom_alarm.yaml
 
 # Testing against a WAV file
 python scripts/verify_profile.py --audio my_recording.wav --profile profiles/my_profile.yaml
@@ -150,7 +150,7 @@ python scripts/verify_profile.py --audio my_recording.wav --profile profiles/my_
 To ensure reliable detection, do not rely on guessed timings or stock examples.
 
 1.  **One Sound = One Profile**: Create a dedicated YAML file for _each_ distinct alarm sound you want to detect.
-2.  **Record Real Audio**: Use the **Web Tuner** (`python -m acoustic_alarm_engine.tuner`) to record the _actual_ device you are targeting in its real environment.
+2.  **Record Real Audio**: Use the **Web Tuner** (`python -m acoustic_engine.tuner`) to record the _actual_ device you are targeting in its real environment.
 3.  **Verify**: Run the verification script against your recording before deploying:
     ```bash
     python scripts/verify_profile.py --audio my_recording.wav --profile my_profile.yaml
@@ -280,7 +280,7 @@ profiles:
 You can run multiple independent detection tasks on the same device by providing multiple config files. The engine acts as a **Parallel Runner**, executing each configuration in complete isolation (besides sharing the microphone).
 
 ```bash
-python -m acoustic_alarm_engine.runner \
+python -m acoustic_engine.runner \
   --config configs/smoke_alarm.yaml \
   --config configs/co_sensor.yaml
 ```
@@ -334,7 +334,7 @@ eval_frequency: 0.5 # How often to evaluate windows
 ### With Audio Files
 
 ```bash
-python -m acoustic_alarm_engine.tester \
+python -m acoustic_engine.tester \
   --profile profiles/smoke_alarm.yaml \
   --audio examples/audio/smoke_alarm.mp3 \
   -v
@@ -343,7 +343,7 @@ python -m acoustic_alarm_engine.tester \
 ### Live Microphone
 
 ```bash
-python -m acoustic_alarm_engine.tester \
+python -m acoustic_engine.tester \
   --profile profiles/ \
   --live \
   --duration 60
@@ -352,7 +352,7 @@ python -m acoustic_alarm_engine.tester \
 ### With Noise Mixing (Specificity Testing)
 
 ```bash
-python -m acoustic_alarm_engine.tester \
+python -m acoustic_engine.tester \
   --profile profiles/smoke_alarm.yaml \
   --audio examples/audio/smoke_alarm.mp3 \
   --noise 0.3 \
@@ -368,7 +368,7 @@ Noise types: `white`, `pink`, `brown`
 Visually record, analyze, and design alarm profiles:
 
 ```bash
-python -m acoustic_alarm_engine.tuner
+python -m acoustic_engine.tuner
 # Open http://localhost:8080
 ```
 
@@ -412,16 +412,16 @@ graph TD
     style YP fill:#f96,stroke:#333,stroke-width:2px
 ```
 
-### **1. Input Layer ([Detailed Docs](src/acoustic_alarm_engine/input/README.md))**
+### **1. Input Layer ([Detailed Docs](src/acoustic_engine/input/README.md))**
 
 The engine is hardware-agnostic. While it includes a `PyAudio` implementation for live capture, it can process audio from any source (files, network streams, etc.) via the `process_chunk` interface.
 
-### **2. Processing Layer ([Detailed Docs](src/acoustic_alarm_engine/processing/README.md))**
+### **2. Processing Layer ([Detailed Docs](src/acoustic_engine/processing/README.md))**
 
 - **SpectralMonitor**: Performs Real-Time FFT and identifies peaks. It uses an **adaptive noise floor** to remain robust as ambient sound levels change.
 - **FrequencyFilter**: Acts as a "firewall" that discards all audio frequencies not explicitly defined in your loaded profiles, preventing non-alarm sounds from wasting CPU cycles.
 
-### **3. Analysis Layer ([Detailed Docs](src/acoustic_alarm_engine/analysis/README.md))**
+### **3. Analysis Layer ([Detailed Docs](src/acoustic_engine/analysis/README.md))**
 
 - **EventGenerator**: Debounces spectral peaks, bridging transient dropouts and ensuring only "stable" tones are processed.
 - **WindowedMatcher**: Uses a sliding window algorithm instead of a fragile state machine. This allows it to "see" a pattern even if it's surrounded by impulsive noise or if the recording started mid-beep.

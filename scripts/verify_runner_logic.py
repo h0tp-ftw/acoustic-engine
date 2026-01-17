@@ -4,7 +4,7 @@ import numpy as np
 import scipy.io.wavfile as wavfile
 import yaml
 
-from acoustic_alarm_engine.config import GlobalConfig
+from acoustic_engine.config import GlobalConfig
 
 
 def generate_tone(freq, duration, sample_rate=44100, amp=0.5):
@@ -102,7 +102,7 @@ def run_verification():
     create_configs()
 
     print("\nRunning Parallel Engine via CLI...")
-    print("Command: python -m acoustic_alarm_engine.runner -c verify_smoke.yaml -c verify_co.yaml")
+    print("Command: python -m acoustic_engine.runner -c verify_smoke.yaml -c verify_co.yaml")
 
     # We can't easily pipe valid audio into the runner via stdin if it expects a mic by default.
     # The runner uses AudioListener which uses PyAudio.

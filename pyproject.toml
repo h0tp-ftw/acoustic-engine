@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "acoustic-alarm-engine"
+name = "acoustic-engine"
 version = "1.0.0"
 description = "Real-time acoustic alarm pattern detection engine"
 readme = "README.md"
@@ -48,19 +48,19 @@ tuner = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/acoustic-alarm-engine"
-Documentation = "https://github.com/yourusername/acoustic-alarm-engine#readme"
-Repository = "https://github.com/yourusername/acoustic-alarm-engine"
-Issues = "https://github.com/yourusername/acoustic-alarm-engine/issues"
+Homepage = "https://github.com/yourusername/acoustic-engine"
+Documentation = "https://github.com/yourusername/acoustic-engine#readme"
+Repository = "https://github.com/yourusername/acoustic-engine"
+Issues = "https://github.com/yourusername/acoustic-engine/issues"
 
 [project.scripts]
-alarm-tuner = "acoustic_alarm_engine.tuner.__main__:main"
+alarm-tuner = "acoustic_engine.tuner.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-"acoustic_alarm_engine.tuner" = ["*.html", "*.css", "*.js"]
+"acoustic_engine.tuner" = ["*.html", "*.css", "*.js"]
 
 [tool.black]
 line-length = 100
