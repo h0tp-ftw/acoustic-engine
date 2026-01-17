@@ -74,25 +74,50 @@ Estimates made by AI based on computational benchmarks. Note that results may va
 
 ## 🚀 Quick Start
 
-### 🐳 Docker Quickstart (Faster)
+### � Fastest Method (Pip)
 
-Avoid installing system dependencies manually by using Docker.
-
-```bash
-# Run the Test Suite
-docker-compose run tests
-
-# Run the Engine (Note: Requires Linux host for /dev/snd access)
-docker-compose run engine python -m acoustic_engine.runner --config configs/smoke_alarm.yaml
-```
-
-### Python Setup
+The easiest way to get started is to install the package directly from PyPI.
 
 ```bash
 pip install acoustic-engine
 ```
 
-Or from source:
+**Running the Engine:**
+
+```bash
+# Run with a configuration file
+python -m acoustic_engine.runner --config my_config.yaml
+```
+
+**Opening the Tuner (Optional):**
+
+```bash
+python -m acoustic_engine.tuner
+```
+
+---
+
+### 🐳 Docker Method (Linux Only)
+
+**Note:** Passing hardware microphone access to Docker is only natively supported on **Linux** (e.g., Raspberry Pi, Ubuntu). Windows and macOS users should use the **Pip Method** above for the best experience.
+
+If you are on Linux, you can run the engine in a single command without installing anything on your host:
+
+```bash
+docker run -it --rm \
+  --device /dev/snd \
+  -v $(pwd):/app \
+  python:3.11-slim-bookworm \
+  sh -c "apt-get update -qq && apt-get install -y portaudio19-dev gcc > /dev/null && pip install acoustic-engine && python -m acoustic_engine.runner --help"
+```
+
+This pulls a standard Python image, installs the engine, and runs it instantly. Replace `--help` with `--config your_config.yaml` to run normally.
+
+---
+
+### 💻 Development Setup (From Source)
+
+For contributors or those who want to modify the engine code:
 
 ```bash
 git clone https://github.com/h0tp-ftw/acoustic-engine.git
@@ -128,20 +153,19 @@ Using the default configuration is suitable for testing, but for production, you
 
 Use the [Web Tuner](https://github.com/h0tp-ftw/acoustic-engine) to record your target alarm in its real environment. Ensure you capture the sound with the actual microphone hardware you intend to use.
 
-
 ### 2. Generate Configuration File
 
 The [Web Tuner](https://github.com/h0tp-ftw/acoustic-engine) allows you to visually analyze the audio and generate a robust YAML profile. This ensures your profile accounts for the specific frequency response and noise characteristics of your setup. You might have to tweak the profile a bit to get it just right. For more info on the configuration file format, see [Profile Schema](#profile-schema).
 
-
-### 3. Test the Configuration 
+### 3. Test the Configuration
 
 # Live testing (uses default microphone)
+
 python -m acoustic_engine.runner --config configs/my_custom_alarm.yaml
 
 # Testing against a WAV file
-python scripts/verify_profile.py --audio my_recording.wav --profile profiles/my_profile.yaml
 
+python scripts/verify_profile.py --audio my_recording.wav --profile profiles/my_profile.yaml
 
 ## 📋 Alarm Profiles policy
 
