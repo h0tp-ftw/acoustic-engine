@@ -99,7 +99,7 @@ python -m acoustic_engine.tuner
 
 ### 🐳 Docker Method (Linux Only)
 
-**Note:** Passing hardware microphone access to Docker is only natively supported on **Linux** (e.g., Raspberry Pi, Ubuntu). Windows and macOS users should use the **Pip Method** above for the best experience.
+**Note:** Passing hardware microphone access to Docker is only natively supported on **Linux** (e.g., Raspberry Pi, Ubuntu) due to OS restrictions. Windows and macOS users should use the **Pip Method** above for the best experience.
 
 If you are on Linux, you can run the engine in a single command without installing anything on your host:
 
