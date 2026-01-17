@@ -136,8 +136,7 @@ Why not use AI? While Neural Networks (NN) are powerful for general sounds (dogs
 | **Determinism** | **100%** (Math)       | Probabilistic            |
 | **Data Needed** | **None** (Zero-shot)  | Thousands of samples     |
 
-Note that data IS needed for generation of the configuration file, but not for runtime.
----
+## Note that data IS needed for generation of the configuration file, but not for runtime.
 
 ## 🛠 How to Create a Custom Configuration
 
@@ -149,7 +148,7 @@ Use the [Web Tuner](https://github.com/h0tp-ftw/acoustic-engine) to record your 
 
 ### 2. Generate Configuration File
 
-The [Web Tuner](https://github.com/h0tp-ftw/acoustic-engine) allows you to visually analyze the audio and generate a robust YAML profile. This ensures your profile accounts for the specific frequency response and noise characteristics of your setup. You might have to tweak the profile a bit to get it just right. For more info on the configuration file format, see [Profile Schema](#profile-schema).
+The [Web Tuner](https://github.com/h0tp-ftw/acoustic-engine) allows you to visually analyze the audio and generate a robust YAML profile. This ensures your profile accounts for the specific frequency response and noise characteristics of your setup. You might have to tweak the profile a bit to get it just right. For comprehensive tuning recipes (like Smart Home vs. Warehouse settings), see the [Tuning Guide](docs/tuning_guide.md). For more info on the configuration file format, see [Profile Schema](#profile-schema).
 
 ### 3. Test the Configuration
 
@@ -245,6 +244,9 @@ _Measured on Standard/High-Performance Linux Workstation (x86_64)_
 ## ⚙️ Configuration & Parallel Execution
 
 The engine uses a **"One File per Runner"** philosophy. Instead of a complex, centralized "god config", you create a single, self-contained YAML file for each specific surveillance task (e.g., `smoke_alarm.yaml`, `co_sensor.yaml`).
+
+> [!TIP]
+> For advanced deployment strategies (Standard vs. Parallel vs. High-Res modes) and production best practices, see the [Deployment Guide](DEPLOYMENT.md).
 
 ### 1. The Configuration File
 
