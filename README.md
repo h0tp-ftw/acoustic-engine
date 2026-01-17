@@ -87,6 +87,21 @@ cd acoustic-alarm-engine
 pip install -e .
 ```
 
+### 🐳 Docker Quickstart
+
+Avoid installing system dependencies manually by using Docker.
+
+```bash
+# Run the Web Tuner (accessible at http://localhost:8080)
+docker-compose up tuner
+
+# Run the Test Suite
+docker-compose run tests
+
+# Run the Engine (Note: Requires Linux host for /dev/snd access)
+docker-compose run engine python -m acoustic_alarm_engine.runner --config configs/smoke_alarm.yaml
+```
+
 ### Basic Usage
 
 ```python
