@@ -70,11 +70,23 @@ Why use this engine instead of an AI-based sound classifier? While Neural Networ
 | **GPU/NPU Req.**     | **None** (Pure CPU)          | Recommended for real-time    |
 | **Power Draw**       | **Ultra-Low** (IoT Friendly) | Medium to High               |
 
-Note that results may vary depending on the hardware used.
+Estimates made by AI based on computational benchmarks. Note that results may vary depending on the hardware used.
 
 ## 🚀 Quick Start
 
-### Installation
+### 🐳 Docker Quickstart (Faster)
+
+Avoid installing system dependencies manually by using Docker.
+
+```bash
+# Run the Test Suite
+docker-compose run tests
+
+# Run the Engine (Note: Requires Linux host for /dev/snd access)
+docker-compose run engine python -m acoustic_alarm_engine.runner --config configs/smoke_alarm.yaml
+```
+
+### Python Setup
 
 ```bash
 pip install acoustic-alarm-engine
@@ -88,20 +100,7 @@ cd acoustic-alarm-engine
 pip install -e .
 ```
 
-### 🐳 Docker Quickstart
 
-Avoid installing system dependencies manually by using Docker.
-
-```bash
-# Run the Web Tuner (accessible at http://localhost:8080)
-docker-compose up tuner
-
-# Run the Test Suite
-docker-compose run tests
-
-# Run the Engine (Note: Requires Linux host for /dev/snd access)
-docker-compose run engine python -m acoustic_alarm_engine.runner --config configs/smoke_alarm.yaml
-```
 
 ### Basic Usage
 
