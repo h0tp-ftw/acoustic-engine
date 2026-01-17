@@ -100,8 +100,6 @@ cd acoustic-alarm-engine
 pip install -e .
 ```
 
-
-
 ### Basic Usage
 
 ```python
@@ -121,6 +119,29 @@ engine = Engine(
 # Start listening (blocking)
 engine.start()
 ```
+
+## 🛠 How to Create a Custom Configuration
+
+Using the default configuration is suitable for testing, but for production, you **must** create a custom configuration tailored to your specific hardware and target sound.
+
+### 1. Identify and Record
+
+Use the [Web Tuner](https://github.com/h0tp-ftw/acoustic-engine) to record your target alarm in its real environment. Ensure you capture the sound with the actual microphone hardware you intend to use.
+
+
+### 2. Generate Configuration File
+
+The [Web Tuner](https://github.com/h0tp-ftw/acoustic-engine) allows you to visually analyze the audio and generate a robust YAML profile. This ensures your profile accounts for the specific frequency response and noise characteristics of your setup. You might have to tweak the profile a bit to get it just right. For more info on the configuration file format, see [Profile Schema](#profile-schema).
+
+
+### 3. Test the Configuration 
+
+# Live testing (uses default microphone)
+python -m acoustic_alarm_engine.runner --config configs/my_custom_alarm.yaml
+
+# Testing against a WAV file
+python scripts/verify_profile.py --audio my_recording.wav --profile profiles/my_profile.yaml
+
 
 ## 📋 Alarm Profiles policy
 
@@ -268,42 +289,6 @@ python -m acoustic_alarm_engine.runner \
 - **Total Isolation**: Adjusting the sensitivity in `smoke_alarm.yaml` has zero effect on the detection logic of `co_sensor.yaml`.
 
 ---
-
-## 🚀 Quick Start
-
-### Installation
-
-```bash
-pip install acoustic-alarm-engine
-```
-
-Or from source:
-
-```bash
-git clone https://github.com/yourusername/acoustic-alarm-engine.git
-cd acoustic-alarm-engine
-pip install -e .
-```
-
-### Basic Usage
-
-```python
-from acoustic_alarm_engine import Engine, AudioConfig
-from acoustic_alarm_engine.profiles import load_profiles_from_yaml
-
-# Load alarm profiles
-profiles = load_profiles_from_yaml("profiles/smoke_alarm.yaml")
-
-# Create engine with callback
-engine = Engine(
-    profiles=profiles,
-    audio_config=AudioConfig(sample_rate=44100, chunk_size=4096),
-    on_detection=lambda name: print(f"🚨 ALARM: {name}")
-)
-
-# Start listening (blocking)
-engine.start()
-```
 
 ---
 
