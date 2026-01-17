@@ -8,7 +8,8 @@
 
 A high-performance, noise-resilient DSP library designed to detect specific acoustic patterns (Smoke Alarms, CO Detectors, Appliance Beeps) on lightweight hardware.
 
-> [!TIP] > **Why this engine?** Unlike heavy Neural Networks, the Acoustic Engine uses deterministic Digital Signal Processing (DSP) to achieve **>99% accuracy** with **<5% CPU usage** on a Raspberry Pi. Best for battery-powered or resource-constrained devices.
+> [!TIP]
+> **Why this engine?** Unlike heavy Neural Networks, the Acoustic Engine uses deterministic Digital Signal Processing (DSP) to achieve **>99% accuracy** with **<5% CPU usage** on a Raspberry Pi. Best for battery-powered or resource-constrained devices.
 
 ## ✨ Features
 
