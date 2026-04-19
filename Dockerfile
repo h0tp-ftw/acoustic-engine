@@ -27,8 +27,18 @@ COPY pyproject.toml README.md ./
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -e ".[dev,audio,tuner]"
 
-# Copy the rest of the application
+# Default Environment Variables
+# Users can override these at runtime via -e
+ENV ACOUSTIC_CONFIG=""
+ENV PYTHONUNBUFFERED=1
+
+# Copy the application source
 COPY . .
 
-# Default command runs the help to show available options
-CMD ["python", "-m", "acoustic_engine.runner", "--help"]
+# Use ENTRYPOINT so the container acts as a binary.
+# Arguments passed to 'docker run' will be appended to this command.
+ENTRYPOINT ["python", "-m", "acoustic_engine.runner"]
+
+# Default command is empty, allowing the ENTRYPOINT's defaults (config.yaml) to take over
+# if no arguments or environment variables are provided.
+CMD []

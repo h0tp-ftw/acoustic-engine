@@ -10,8 +10,12 @@ RUN apt-get update && apt-get install -y \
 # Install the engine directly from PyPI
 RUN pip install --no-cache-dir acoustic-engine[tuner]
 
-# Create a working directory for configs/logs
-WORKDIR /app
+# Default Environment Variables
+ENV ACOUSTIC_CONFIG=""
+ENV PYTHONUNBUFFERED=1
 
-# Default command
-CMD ["python", "-m", "acoustic_engine.runner", "--help"]
+# Use ENTRYPOINT so the container acts as a binary.
+ENTRYPOINT ["python", "-m", "acoustic_engine.runner"]
+
+# Default command is empty
+CMD []

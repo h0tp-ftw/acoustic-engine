@@ -1,5 +1,6 @@
 import argparse
 import logging
+import os
 import sys
 from typing import List, Tuple
 
@@ -22,14 +23,34 @@ def main():
         "-c",
         "--config",
         action="append",
-        required=True,
+        required=False,
         help="Path to YAML configuration file. Can be specified multiple times.",
     )
     args = parser.parse_args()
 
+    # 1. Determine configuration sources
+    config_paths = args.config
+    
+    # If no flags, check environment variable
+    if not config_paths:
+        env_cfg = os.getenv("ACOUSTIC_CONFIG")
+        if env_cfg:
+            logger.info(f"Using configuration from environment (ACOUSTIC_CONFIG): {env_cfg}")
+            config_paths = [env_cfg]
+            
+    # If still no source, check for default config.yaml
+    if not config_paths:
+        if os.path.exists("config.yaml"):
+            logger.info("Using default configuration file (config.yaml)")
+            config_paths = ["config.yaml"]
+            
+    if not config_paths:
+        logger.error("No configuration sources found. Use --config, ACOUSTIC_CONFIG, or provide a config.yaml")
+        sys.exit(1)
+
     # 1. Load all configurations
     configs: List[GlobalConfig] = []
-    for config_path in args.config:
+    for config_path in config_paths:
         try:
             logger.info(f"Loading config: {config_path}")
             cfg = GlobalConfig.load(config_path)
@@ -64,7 +85,7 @@ def main():
     pipelines: List[Tuple[AlarmProfile, EngineConfig]] = []
 
     for i, cfg in enumerate(configs):
-        original_source = args.config[i]
+        original_source = config_paths[i]
 
         # Determine effective engine config for this file
         # This preserves the user's specific tuning (sensitivity, thresholds)
