@@ -20,21 +20,29 @@ A high-performance, noise-resilient DSP library designed to detect specific acou
 
 ---
 
-## 🚀 Quick Start
-
-### 📦 Fastest Method (Pip)
-
-The easiest way to get started is to install the package directly from PyPI.
+### 📦 From Source (Recommended for Tuning)
+For contributors or those who want to use the **Tuner** to design custom configs:
 
 ```bash
-pip install acoustic-engine
+git clone https://github.com/h0tp-ftw/acoustic-engine.git
+cd acoustic-engine
+# Create environment
+python -m venv venv
+
+# Activate (Windows)
+.\venv\Scripts\activate
+# Activate (Linux/Mac)
+source venv/bin/activate
+pip install -e .[tuner]
 ```
 
 **Running the Engine:**
-
 ```bash
+# Launch the Pro Tuner Wizard (New!)
+python -m acoustic_engine.tuner
+
 # Run with a configuration file
-python -m acoustic_engine.runner --help
+python -m acoustic_engine.runner --config profiles/smoke_alarm.yaml
 ```
 
 ---
@@ -148,7 +156,7 @@ Use the [Web Tuner](https://github.com/h0tp-ftw/acoustic-engine) to record your 
 
 ### 2. Generate Configuration File
 
-The [Web Tuner](https://github.com/h0tp-ftw/acoustic-engine) allows you to visually analyze the audio and generate a robust YAML profile. This ensures your profile accounts for the specific frequency response and noise characteristics of your setup. You might have to tweak the profile a bit to get it just right. For comprehensive tuning recipes (like Smart Home vs. Warehouse settings), see the [Tuning Guide](docs/tuning_guide.md). For more info on the configuration file format, see [Profile Schema](#profile-schema).
+The [Pro Tuner](http://localhost:8080) allows you to visually analyze the audio and generate a robust YAML profile. Unlike previous versions, the new tuner uses the **actual Python engine** in the backend to ensure perfect signature extraction. This ensures your profile accounts for the specific frequency response and noise characteristics of your setup.
 
 ### 3. Test the Configuration
 
@@ -383,14 +391,20 @@ Noise types: `white`, `pink`, `brown`
 
 ---
 
-## 🎛 Web Tuner
+## 🎛 Pro Tuner
 
-Visually record, analyze, and design alarm profiles:
+The Acoustic Engine now includes a premium, **5-step Pro Tuner** wizard to visually record, analyze, and design alarm profiles with engine-level precision.
 
 ```bash
 python -m acoustic_engine.tuner
 # Open http://localhost:8080
 ```
+
+1.  **Source**: Record from mic or upload WAV/MP3.
+2.  **Analyze**: Python-powered spectral fingerprint extraction.
+3.  **Edit**: Visual segment refinement for freq/duration.
+4.  **Verify**: Run the engine's `WindowedMatcher` against your recording to confirm detection.
+5.  **Export**: Instant YAML generation.
 
 ---
 
