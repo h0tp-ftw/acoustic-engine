@@ -44,7 +44,9 @@ audio = [
     "pydub>=0.25.0",  # For MP3, OGG, FLAC support (requires ffmpeg)
 ]
 tuner = [
-    # Tuner uses built-in http.server, no extra deps needed
+    "fastapi>=0.100.0",
+    "uvicorn>=0.20.0",
+    "python-multipart>=0.0.6",
 ]
 
 [project.urls]
