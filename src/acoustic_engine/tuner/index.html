@@ -1,180 +1,45 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Acoustic Pro Tuner</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acoustic Engine | Pro Tuner</title>
+    
+    <!-- Premium Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app-container">
-    <header class="app-header">
-      <h1>🔊 Acoustic Pro Tuner</h1>
-      <p class="subtitle">High-fidelity alarm pattern design environment</p>
-    </header>
+    <div class="app-container">
+        <header>
+            <h1>🔊 Acoustic Pro Tuner</h1>
+            <p class="subtitle">Diagnostic-grade alarm pattern engineering</p>
+        </header>
 
-    <!-- Project Stepper -->
-    <nav class="stepper">
-      <div class="step-item active" data-step="1">
-        <div class="step-circle">1</div>
-        <span class="step-label">Source</span>
-      </div>
-      <div class="step-item" data-step="2">
-        <div class="step-circle">2</div>
-        <span class="step-label">Analyze</span>
-      </div>
-      <div class="step-item" data-step="3">
-        <div class="step-circle">3</div>
-        <span class="step-label">Edit</span>
-      </div>
-      <div class="step-item" data-step="4">
-        <div class="step-circle">4</div>
-        <span class="step-label">Verify</span>
-      </div>
-      <div class="step-item" data-step="5">
-        <div class="step-circle">5</div>
-        <span class="step-label">Export</span>
-      </div>
-    </nav>
-
-    <main class="main-content">
-      <!-- Step 1: Source Selection -->
-      <section id="step1" class="step-content panel active">
-        <h2>Input Source</h2>
-        <p class="text-dim">Capture or upload the target sound pattern</p>
-        
-        <div class="mt-4">
-          <div id="dropzone" class="dropzone">
-            <span class="icon" style="font-size: 2rem;">📁</span>
-            <h3>Drag & Drop WAV/MP3</h3>
-            <p>or click to select file</p>
-            <input type="file" id="fileInput" accept="audio/*" hidden />
-          </div>
-          
-          <div style="text-align: center; margin: 1.5rem 0;">OR</div>
-          
-          <div class="record-controls flex-between panel">
-            <div id="recordStatus" class="record-status">
-              <div class="pulse" style="display: none;"></div>
-              <span id="recordText">Ready to record</span>
+        <main id="tunerApp">
+            <!-- Framework Shell Placeholder -->
+            <div class="glass-panel">
+                <h2>Framework Initialized</h2>
+                <p>Waiting for walk-through instructions...</p>
+                <div style="margin-top: 1.5rem; display: flex; gap: 1rem;">
+                    <button onclick="console.error('Manual Test Error')" style="background: var(--primary); color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer;">Test Console Error</button>
+                    <button onclick="throw new Error('Crash Test Error')" style="background: var(--secondary); color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer;">Test App Crash</button>
+                </div>
             </div>
-            <div class="btn-group">
-              <button id="recordBtn" class="btn btn-primary">⏺ Start Recording</button>
-              <button id="stopBtn" class="btn btn-secondary" disabled>⏹ Stop</button>
-            </div>
-          </div>
-        </div>
+        </main>
 
-        <div id="sourcePreview" class="mt-4" style="display: none;">
-          <h3>Recording Preview</h3>
-          <div class="visual-container">
-            <canvas id="sourceWaveform" height="100"></canvas>
-          </div>
-          <div class="flex-between">
-             <span id="audioDuration">0.0s</span>
-             <button id="toStep2" class="btn btn-primary">Next: Analyze Signature →</button>
-          </div>
+        <!-- System Status HUD -->
+        <div class="status-hud">
+            <div class="status-indicator"></div>
+            <span>SYSTEM READY</span>
+            <span style="opacity: 0.3">|</span>
+            <span id="terminal-sync">DBRG SYNCED</span>
         </div>
-      </section>
+    </div>
 
-      <!-- Step 2: Signature Analysis -->
-      <section id="step2" class="step-content panel">
-        <h2>Engine Signature Extraction</h2>
-        <p class="text-dim">The Python engine is analyzing the spectral fingerprint...</p>
-        
-        <div class="mt-4">
-          <div class="visual-container">
-            <h3>Spectrogram (FFT)</h3>
-            <canvas id="spectrogramCanvas" height="200"></canvas>
-          </div>
-          
-          <div class="visual-container">
-            <h3>Detected Events (Actual Tones)</h3>
-            <canvas id="eventsCanvas" height="80"></canvas>
-          </div>
-        </div>
-
-        <div class="flex-between mt-4">
-          <button class="btn btn-secondary prev-step">← Back</button>
-          <button id="toStep3" class="btn btn-primary">Next: Tweak Profile →</button>
-        </div>
-      </section>
-
-      <!-- Step 3: Visual Editor -->
-      <section id="step3" class="step-content panel">
-        <div class="flex-between">
-          <h2>Profile Refinement</h2>
-          <div class="profile-meta">
-            <label>Name: <input type="text" id="profileName" value="New_Alarm" /></label>
-          </div>
-        </div>
-        
-        <div class="mt-4 segment-list" id="segmentList">
-          <!-- Dynamic segments -->
-        </div>
-
-        <div class="mt-4">
-           <button id="addSegment" class="btn btn-secondary">+ Add Segment</button>
-        </div>
-
-        <div class="flex-between mt-4">
-          <button class="btn btn-secondary prev-step">← Back</button>
-          <button id="toStep4" class="btn btn-primary">Next: Verify Detection →</button>
-        </div>
-      </section>
-
-      <!-- Step 4: Verification -->
-      <section id="step4" class="step-content panel">
-        <h2>Verification Loop</h2>
-        <p class="text-dim">Running the Windowed Matcher against your recording...</p>
-        
-        <div class="mt-4">
-          <div class="visual-container">
-            <h3>Detection Timeline</h3>
-            <div id="verifyTimeline" style="height: 40px; background: rgba(255,255,255,0.05); position: relative; border-radius: 4px;">
-              <!-- Detection markers -->
-            </div>
-          </div>
-          
-          <div id="verifyResults" class="mt-4 panel" style="background: rgba(16, 185, 129, 0.05);">
-            <div id="matchCount" style="font-size: 2rem; font-weight: 800; color: var(--accent);">0</div>
-            <p>Confirmed Detections</p>
-          </div>
-        </div>
-
-        <div class="flex-between mt-4">
-          <button class="btn btn-secondary prev-step">← Back</button>
-          <button id="toStep5" class="btn btn-primary">Next: Final Export →</button>
-        </div>
-      </section>
-
-      <!-- Step 5: Export -->
-      <section id="step5" class="step-content panel">
-        <h2>Export Configuration</h2>
-        <p class="text-dim">Your production-ready YAML profile is ready.</p>
-        
-        <div class="mt-4">
-          <pre id="yamlOutput" class="code-preview"></pre>
-        </div>
-
-        <div class="flex-between mt-4">
-          <button class="btn btn-secondary prev-step">← Back</button>
-          <button id="downloadBtn" class="btn btn-primary">💾 Download profile.yaml</button>
-        </div>
-      </section>
-    </main>
-
-    <footer class="app-footer" style="text-align: center; margin-top: 3rem; color: var(--text-dim); font-size: 0.8rem;">
-      <p>Acoustic Engine Pro Tuner — Powered by Python Engine v1.1</p>
-    </footer>
-  </div>
-
-  <!-- Note: we discarded legacy js engine as per user request -->
-  <script src="visualizer.js"></script>
-  <script src="app.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>

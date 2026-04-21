@@ -9,10 +9,11 @@ import sys
 import webbrowser
 from pathlib import Path
 
+import traceback
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse
 
 from .api import router as api_router
 
@@ -23,6 +24,20 @@ def get_tuner_dir() -> Path:
     return Path(__file__).parent
 
 app = FastAPI(title="Acoustic Engine Tuner API")
+
+# Global Exception Handler for absolute visibility
+@app.exception_handler(Exception)
+async def universal_exception_handler(request: Request, exc: Exception):
+    print("\n" + "="*60)
+    print(" >>> BACKEND EXCEPTION DETECTED")
+    print(f" Path: {request.url.path}")
+    print("-" * 60)
+    traceback.print_exc()
+    print("="*60 + "\n")
+    return JSONResponse(
+        status_code=500,
+        content={"error": "Internal Server Error", "detail": str(exc), "path": request.url.path}
+    )
 
 # Serve static files from the tuner directory
 tuner_dir = get_tuner_dir()
@@ -82,9 +97,16 @@ if __name__ == "__main__":
     parser.add_argument(
         "-p", "--port", type=int, default=8080, help="Port to serve on (default: 8080)"
     )
+    # Added -v to prevent parsing errors when user passes it
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Enable verbose logging"
+    )
     parser.add_argument(
         "--no-browser", action="store_true", help="Don't open browser automatically"
     )
 
-    args = parser.parse_args()
+    args, unknown = parser.parse_known_args()
+    if unknown:
+        print(f"⚠️ Warning: Unknown arguments: {unknown}")
+    
     main(port=args.port, open_browser=not args.no_browser)

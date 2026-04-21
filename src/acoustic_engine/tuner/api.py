@@ -28,6 +28,28 @@ class ProfileSchema(BaseModel):
     confirmation_cycles: int
     segments: List[ProfileSegment]
 
+class LogMessage(BaseModel):
+    type: str
+    message: str
+    stack: Optional[str] = None
+    url: Optional[str] = None
+    line: Optional[int] = None
+    col: Optional[int] = None
+
+@router.post("/log")
+async def log_frontend_error(log: LogMessage):
+    """Bridge for frontend errors to the terminal."""
+    print("\n" + "!"*60)
+    print(f" [FRONTEND ERROR] Type: {log.type.upper()}")
+    print(f" Message: {log.message}")
+    if log.url:
+        print(f" Source: {log.url}:{log.line}:{log.col}")
+    if log.stack:
+        print("-" * 60)
+        print(log.stack)
+    print("!"*60 + "\n")
+    return {"status": "logged"}
+
 def load_audio(data: bytes) -> tuple[np.ndarray, int]:
     """Load WAV data into a numpy array."""
     try:
