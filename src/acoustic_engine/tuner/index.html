@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Acoustic Engine | Pro Tuner</title>
     
+    <!-- Primary Diagnostics -->
+    <script src="bridge.js"></script>
+
     <!-- Premium Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,15 +23,49 @@
         </header>
 
         <main id="tunerApp">
-            <!-- Framework Shell Placeholder -->
-            <div class="glass-panel">
-                <h2>Framework Initialized</h2>
-                <p>Waiting for walk-through instructions...</p>
-                <div style="margin-top: 1.5rem; display: flex; gap: 1rem;">
-                    <button onclick="console.error('Manual Test Error')" style="background: var(--primary); color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer;">Test Console Error</button>
-                    <button onclick="throw new Error('Crash Test Error')" style="background: var(--secondary); color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer;">Test App Crash</button>
+            <!-- Step 1: Input & Isolate -->
+            <section id="step1" class="glass-panel">
+                <header class="step-header">
+                    <span class="step-badge">Phase 01</span>
+                    <h2>Source Acquisition</h2>
+                    <p class="text-dim">Isolate the target alarm signature from the recording.</p>
+                </header>
+
+                <div id="dropzone" class="dropzone mt-4">
+                    <div class="dropzone-content">
+                        <span class="icon">📁</span>
+                        <h3>Import Audio</h3>
+                        <p>Drag & drop WAV / MP3 or click to browse</p>
+                    </div>
+                    <input type="file" id="fileInput" accept="audio/*" hidden />
                 </div>
-            </div>
+
+                <div id="analyserWorkspace" class="mt-4" style="display: none;">
+                    <div class="visual-wrapper">
+                        <canvas id="spectrogramCanvas"></canvas>
+                        <div id="scrubber" class="scrubber"></div>
+                        <div id="cropOverlay" class="crop-overlay">
+                            <div class="crop-handle start"></div>
+                            <div class="crop-handle end"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="transport-bar mt-4">
+                        <div class="btn-group">
+                            <button id="playBtn" class="btn btn-icon" title="Play">▶</button>
+                            <button id="stopBtn" class="btn btn-icon" title="Stop">⏹</button>
+                        </div>
+                        
+                        <div class="timestamp-display">
+                            <span id="currentTime">00:00.0</span> / <span id="totalTime">00:00.0</span>
+                        </div>
+
+                        <button id="cropBtn" class="btn btn-primary">
+                            <span>✂️ Crop & Analyze</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
         </main>
 
         <!-- System Status HUD -->
@@ -40,6 +77,7 @@
         </div>
     </div>
 
+    <script src="visualizer.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

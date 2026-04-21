@@ -39,15 +39,24 @@ class LogMessage(BaseModel):
 @router.post("/log")
 async def log_frontend_error(log: LogMessage):
     """Bridge for frontend errors to the terminal."""
-    print("\n" + "!"*60)
-    print(f" [FRONTEND ERROR] Type: {log.type.upper()}")
-    print(f" Message: {log.message}")
+    if log.type == "system":
+        print(f" >>> [DIAG] {log.message}")
+        return {"status": "synced"}
+
+    print("\n" + "!" * 80)
+    print(f" !! [FRONTEND FAILURE] {log.type.upper()}")
+    print(f" !! Message: {log.message}")
     if log.url:
-        print(f" Source: {log.url}:{log.line}:{log.col}")
+        print(f" !! Source: {log.url} (Line: {log.line}, Col: {log.col})")
+    
     if log.stack:
-        print("-" * 60)
+        print("\n" + "RAW TRACEBACK:")
+        print("-" * 80)
+        # Ensure we print it as-is for maximum root cause visibility
         print(log.stack)
-    print("!"*60 + "\n")
+        print("-" * 80)
+    
+    print("!" * 80 + "\n")
     return {"status": "logged"}
 
 def load_audio(data: bytes) -> tuple[np.ndarray, int]:
