@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Upload, Play, Square, Pause, Settings2, Activity, Download, Copy, RefreshCw, Scissors, Wand2, Plus, Trash2, Dices, Radio, Info, FileUp, FileText, ChevronDown, ChevronRight, ShieldCheck, Loader2 } from 'lucide-react';
+import { Upload, Play, Square, Pause, Settings2, Activity, Download, Copy, RefreshCw, Scissors, Wand2, Plus, Trash2, Dices, Radio, Info, FileUp, FileText, ChevronDown, ChevronRight, ShieldCheck, Loader2, Undo2 } from 'lucide-react';
 import jsyaml from 'js-yaml';
 import {
   analyzeAudio,
@@ -67,6 +67,12 @@ export default function AcousticTuner() {
   const [autoCycleCount, setAutoCycleCount] = useState(null);
   const [autoCyclePeriod, setAutoCyclePeriod] = useState(null);
 
+  // --- Undo ---
+  const undoStackRef = useRef([]);
+
+  // --- Drag-and-drop ---
+  const [isDragging, setIsDragging] = useState(false);
+
   // --- Refs ---
   const canvasRef = useRef(null);
   const audioContextRef = useRef(null);
@@ -90,6 +96,56 @@ export default function AcousticTuner() {
     const ctx = audioContextRef.current;
     if (ctx && ctx.state === 'suspended') await ctx.resume();
   }, []);
+
+  const pushUndo = useCallback((label) => {
+    undoStackRef.current.push({
+      label,
+      audioBuffer,
+      profileSegments,
+      profileName,
+      cycles,
+      minToneDuration,
+      dropoutTolerance,
+      resetTimeout,
+      threshold,
+      minDuration,
+    });
+    if (undoStackRef.current.length > 10) undoStackRef.current.shift();
+  }, [audioBuffer, profileSegments, profileName, cycles, minToneDuration, dropoutTolerance, resetTimeout, threshold, minDuration]);
+
+  const undo = useCallback(() => {
+    const snap = undoStackRef.current.pop();
+    if (!snap) return;
+    if (snap.audioBuffer) {
+      setAudioBuffer(snap.audioBuffer);
+      runAnalysis(snap.audioBuffer);
+    }
+    setProfileSegments(snap.profileSegments);
+    setProfileName(snap.profileName);
+    setCycles(snap.cycles);
+    setMinToneDuration(snap.minToneDuration);
+    setDropoutTolerance(snap.dropoutTolerance);
+    setResetTimeout(snap.resetTimeout);
+    setThreshold(snap.threshold);
+    setMinDuration(snap.minDuration);
+    showToast(`Undo: ${snap.label}`);
+  }, [runAnalysis, showToast]);
+
+  const loadAudioFile = useCallback(async (file) => {
+    await ensureAudioContext();
+    const arrayBuffer = await file.arrayBuffer();
+    const ctx = audioContextRef.current;
+    try {
+      const buffer = await ctx.decodeAudioData(arrayBuffer);
+      setAudioBuffer(buffer);
+      setFileName(file.name);
+      setProfileSegments([]);
+      runAnalysis(buffer);
+      showToast(`Loaded ${file.name}`);
+    } catch {
+      showToast('Error decoding audio file');
+    }
+  }, [ensureAudioContext, runAnalysis, showToast]);
 
   // --- Init Audio Context ---
   useEffect(() => {
@@ -127,14 +183,57 @@ export default function AcousticTuner() {
     return { width: w, height: h, ctx };
   }, []);
 
+  const analysisWorkerRef = useRef(null);
+  const [analyzing, setAnalyzing] = useState(false);
+
   const runAnalysis = useCallback((buffer) => {
     if (spectrumDataRef.current) spectrumDataRef.current.fill(-140);
-    const analysis = analyzeAudio(buffer, 10);
-    setEnvelope(analysis.envelope);
-    setFreqTrack(analysis.freqTrack);
-    setSpectrogram(analysis.spectrogram);
-    setFreqResolution(analysis.freqResolution);
-    setTonalFlags(analysis.tonalFlags);
+
+    const channelData = buffer.getChannelData(0);
+    const sampleRate = buffer.sampleRate;
+
+    // Use Web Worker for files > 5 seconds to keep UI responsive
+    if (buffer.duration > 5) {
+      setAnalyzing(true);
+      if (analysisWorkerRef.current) analysisWorkerRef.current.terminate();
+
+      const worker = new Worker(new URL('./analysis.worker.js', import.meta.url), { type: 'module' });
+      analysisWorkerRef.current = worker;
+
+      worker.onmessage = (e) => {
+        const analysis = e.data;
+        setEnvelope(analysis.envelope);
+        setFreqTrack(analysis.freqTrack);
+        setSpectrogram(analysis.spectrogram);
+        setFreqResolution(analysis.freqResolution);
+        setTonalFlags(analysis.tonalFlags);
+        setAnalyzing(false);
+        worker.terminate();
+        analysisWorkerRef.current = null;
+      };
+
+      worker.onerror = () => {
+        // Fallback to main thread if worker fails
+        const analysis = analyzeAudio(buffer, 10);
+        setEnvelope(analysis.envelope);
+        setFreqTrack(analysis.freqTrack);
+        setSpectrogram(analysis.spectrogram);
+        setFreqResolution(analysis.freqResolution);
+        setTonalFlags(analysis.tonalFlags);
+        setAnalyzing(false);
+      };
+
+      // Copy channel data (can't transfer AudioBuffer directly)
+      const dataCopy = new Float32Array(channelData);
+      worker.postMessage({ channelData: dataCopy, sampleRate, windowMs: 10 }, [dataCopy.buffer]);
+    } else {
+      const analysis = analyzeAudio(buffer, 10);
+      setEnvelope(analysis.envelope);
+      setFreqTrack(analysis.freqTrack);
+      setSpectrogram(analysis.spectrogram);
+      setFreqResolution(analysis.freqResolution);
+      setTonalFlags(analysis.tonalFlags);
+    }
   }, []);
 
   const generateDemoSignal = async () => {
@@ -168,21 +267,7 @@ export default function AcousticTuner() {
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
-
-    await ensureAudioContext();
-    const arrayBuffer = await file.arrayBuffer();
-    const ctx = audioContextRef.current;
-
-    try {
-      const buffer = await ctx.decodeAudioData(arrayBuffer);
-      setAudioBuffer(buffer);
-      setFileName(file.name);
-      setProfileSegments([]);
-      runAnalysis(buffer);
-      showToast(`Loaded ${file.name}`);
-    } catch {
-      alert('Error decoding audio file. Make sure this is a valid audio format.');
-    }
+    await loadAudioFile(file);
   };
 
   useEffect(() => {
@@ -193,17 +278,74 @@ export default function AcousticTuner() {
     }
   }, [audioBuffer]);
 
-  // Spacebar = play/pause
+  // Drag-and-drop audio anywhere on the page
+  useEffect(() => {
+    let dragCount = 0;
+    const onDragEnter = (e) => { e.preventDefault(); dragCount++; setIsDragging(true); };
+    const onDragLeave = (e) => { e.preventDefault(); dragCount--; if (dragCount <= 0) { dragCount = 0; setIsDragging(false); } };
+    const onDragOver = (e) => e.preventDefault();
+    const onDrop = (e) => {
+      e.preventDefault();
+      dragCount = 0;
+      setIsDragging(false);
+      const file = e.dataTransfer?.files?.[0];
+      if (file && file.type.startsWith('audio/')) loadAudioFile(file);
+    };
+    document.addEventListener('dragenter', onDragEnter);
+    document.addEventListener('dragleave', onDragLeave);
+    document.addEventListener('dragover', onDragOver);
+    document.addEventListener('drop', onDrop);
+    return () => {
+      document.removeEventListener('dragenter', onDragEnter);
+      document.removeEventListener('dragleave', onDragLeave);
+      document.removeEventListener('dragover', onDragOver);
+      document.removeEventListener('drop', onDrop);
+    };
+  }, [loadAudioFile]);
+
+  // Persist profile state to localStorage
+  useEffect(() => {
+    if (profileSegments.length === 0) return;
+    const state = { profileName, cycles, profileSegments, minToneDuration, dropoutTolerance, resetTimeout, threshold, minDuration, useAdaptiveThreshold, useSpectralGating, engineApiUrl };
+    try { localStorage.setItem('acoustic-tuner-state', JSON.stringify(state)); } catch {}
+  }, [profileName, cycles, profileSegments, minToneDuration, dropoutTolerance, resetTimeout, threshold, minDuration, useAdaptiveThreshold, useSpectralGating, engineApiUrl]);
+
+  // Restore from localStorage on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('acoustic-tuner-state');
+      if (!raw) return;
+      const s = JSON.parse(raw);
+      if (s.profileName) setProfileName(s.profileName);
+      if (s.cycles) setCycles(s.cycles);
+      if (s.profileSegments?.length) setProfileSegments(s.profileSegments);
+      if (s.minToneDuration != null) setMinToneDuration(s.minToneDuration);
+      if (s.dropoutTolerance != null) setDropoutTolerance(s.dropoutTolerance);
+      if (s.resetTimeout != null) setResetTimeout(s.resetTimeout);
+      if (s.threshold != null) setThreshold(s.threshold);
+      if (s.minDuration != null) setMinDuration(s.minDuration);
+      if (s.useAdaptiveThreshold != null) setUseAdaptiveThreshold(s.useAdaptiveThreshold);
+      if (s.useSpectralGating != null) setUseSpectralGating(s.useSpectralGating);
+      if (s.engineApiUrl) setEngineApiUrl(s.engineApiUrl);
+    } catch {}
+  }, []);
+
+  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e) => {
-      if (e.code === 'Space' && e.target === document.body) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+      if (e.code === 'Space') {
         e.preventDefault();
         togglePlayback();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
+        e.preventDefault();
+        undo();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [audioBuffer, isPlaying, currentTime]);
+  }, [audioBuffer, isPlaying, currentTime, undo]);
 
   // --- Playback Controls ---
   const togglePlayback = async () => {
@@ -293,6 +435,7 @@ export default function AcousticTuner() {
 
   const applyCrop = () => {
     if (!audioBuffer) return;
+    pushUndo('crop');
     const sampleRate = audioBuffer.sampleRate;
     const startSample = Math.floor(cropStart * sampleRate);
     const endSample = Math.floor(cropEnd * sampleRate);
@@ -492,6 +635,7 @@ export default function AcousticTuner() {
   // --- Profile Extraction ---
   const extractToProfile = () => {
     if (analyzerSegments.length === 0) return;
+    pushUndo('extract');
 
     let finalSegments = [];
     const detectedCycles = autoCycleCount || 1;
@@ -583,6 +727,7 @@ export default function AcousticTuner() {
   // --- YAML Import ---
   const importYAML = () => {
     setYamlImportError('');
+    pushUndo('import YAML');
     try {
       const data = jsyaml.load(yamlImportText);
       if (!data || typeof data !== 'object') throw new Error('Invalid YAML structure');
@@ -1038,6 +1183,9 @@ export default function AcousticTuner() {
             <button onClick={() => setShowYamlImport(!showYamlImport)} className="bg-slate-700 hover:bg-slate-600 transition px-4 py-2 rounded-lg flex items-center gap-2 font-medium border border-slate-600 text-sm text-amber-400">
               <FileUp size={16} /> Import YAML
             </button>
+            <button onClick={undo} disabled={undoStackRef.current.length === 0} className="bg-slate-800 hover:bg-slate-700 transition px-4 py-2 rounded-lg flex items-center gap-2 text-slate-300 border border-slate-700 text-sm disabled:opacity-30" title="Undo (Ctrl+Z)">
+              <Undo2 size={16} />
+            </button>
             <button onClick={generateDemoSignal} className="bg-slate-800 hover:bg-slate-700 transition px-4 py-2 rounded-lg flex items-center gap-2 text-slate-300 border border-slate-700 text-sm">
               <RefreshCw size={16} /> Reset Demo
             </button>
@@ -1109,7 +1257,7 @@ export default function AcousticTuner() {
                   <button onClick={() => setViewMode('timeline')} className={`px-4 py-1.5 text-xs font-bold rounded-md transition ${viewMode === 'timeline' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}>Timeline</button>
                   <button onClick={() => setViewMode('spectrum')} className={`flex items-center gap-1 px-4 py-1.5 text-xs font-bold rounded-md transition ${viewMode === 'spectrum' ? 'bg-orange-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}><Radio size={14} /> Live Spectrum</button>
                 </div>
-                <div className="text-xs text-slate-500">Space = play/pause</div>
+                <div className="text-xs text-slate-500">Space = play/pause, Ctrl+Z = undo</div>
               </div>
 
               {/* Canvas */}
@@ -1120,6 +1268,16 @@ export default function AcousticTuner() {
                 onClick={handleCanvasClick}
               >
                 <canvas ref={canvasRef} className="w-full h-full relative z-0" style={{ imageRendering: 'auto' }} />
+
+                {/* Analyzing spinner */}
+                {analyzing && (
+                  <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/60 backdrop-blur-[2px]">
+                    <div className="flex items-center gap-3 bg-slate-800 px-5 py-3 rounded-lg border border-slate-700 shadow-lg">
+                      <Loader2 size={20} className="animate-spin text-blue-400" />
+                      <span className="text-sm text-slate-300">Analyzing audio...</span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Playhead */}
                 {viewMode === 'timeline' && audioBuffer && (
@@ -1513,6 +1671,17 @@ export default function AcousticTuner() {
           </div>
         </div>
       </div>
+
+      {/* Drag-and-drop overlay */}
+      {isDragging && (
+        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center pointer-events-none">
+          <div className="border-4 border-dashed border-blue-500 rounded-3xl p-16 text-center">
+            <Upload size={64} className="text-blue-400 mx-auto mb-4" />
+            <div className="text-2xl font-bold text-white">Drop audio file to load</div>
+            <div className="text-slate-400 mt-2">WAV, MP3, OGG, FLAC, M4A</div>
+          </div>
+        </div>
+      )}
 
       {/* Toast notification */}
       {toast && (
