@@ -25,7 +25,7 @@ COPY pyproject.toml README.md ./
 # We install with -e (editable) so changes in the mounted volume are reflected immediately if desired,
 # but for a production build you usually wouldn't use -e. For "Quickstart" dev env, -e is perfect.
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -e ".[dev,audio,tuner]"
+    pip install --no-cache-dir -e ".[dev,tuner]"
 
 # Default Environment Variables
 # Users can override these at runtime via -e
