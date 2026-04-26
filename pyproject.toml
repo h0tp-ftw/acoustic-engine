@@ -47,8 +47,7 @@ tuner = [
     "fastapi>=0.100.0",
     "uvicorn>=0.20.0",
     "python-multipart>=0.0.6",
-    "nicegui>=1.4.0",
-    "rich>=13.0.0",
+    "av>=12.0.0",
 ]
 
 [project.urls]
@@ -58,13 +57,13 @@ Repository = "https://github.com/h0tp-ftw/acoustic-engine"
 Issues = "https://github.com/h0tp-ftw/acoustic-engine/issues"
 
 [project.scripts]
-alarm-tuner = "acoustic_engine.tuner.__main__:main"
+alarm-tuner = "acoustic_engine.tuner.validate:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-"acoustic_engine.tuner" = ["*.html", "*.css", "*.js"]
+"acoustic_engine" = ["*.yaml"]
 
 [tool.black]
 line-length = 100
