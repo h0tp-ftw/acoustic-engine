@@ -7,9 +7,6 @@ Run with: python -m acoustic_engine.tuner
 import logging
 import sys
 import argparse
-from typing import Optional
-
-from .gui import start_gui
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +26,7 @@ def main(port: int = 8080, open_browser: bool = True):
     # Note: NiceGUI handles the browser opening automatically by default
     # but we can configure it in gui.py or here.
     try:
+        from .gui import start_gui
         start_gui(port=port)
     except KeyboardInterrupt:
         print("\n👋 Tuner stopped by user")
