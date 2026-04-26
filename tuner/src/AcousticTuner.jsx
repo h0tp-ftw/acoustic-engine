@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Upload, Play, Square, Pause, Settings2, Activity, Download, Copy, RefreshCw, Scissors, Wand2, Plus, Trash2, Dices, Radio, Info, FileUp, FileText, ChevronDown, ChevronRight } from 'lucide-react';
+import { Upload, Play, Square, Pause, Settings2, Activity, Download, Copy, RefreshCw, Scissors, Wand2, Plus, Trash2, Dices, Radio, Info, FileUp, FileText, ChevronDown, ChevronRight, ShieldCheck, Loader2 } from 'lucide-react';
 import jsyaml from 'js-yaml';
 import {
   analyzeAudio,
@@ -56,6 +56,12 @@ export default function AcousticTuner() {
   const [yamlImportText, setYamlImportText] = useState('');
   const [yamlImportError, setYamlImportError] = useState('');
   const [showYamlImport, setShowYamlImport] = useState(false);
+
+  // --- Engine Validation State ---
+  const [engineResult, setEngineResult] = useState(null);
+  const [engineValidating, setEngineValidating] = useState(false);
+  const [engineApiUrl, setEngineApiUrl] = useState('http://localhost:8787');
+  const [showEngineLayer, setShowEngineLayer] = useState(true);
 
   // --- Auto Cycle Detection ---
   const [autoCycleCount, setAutoCycleCount] = useState(null);
@@ -680,6 +686,65 @@ export default function AcousticTuner() {
     setIsSynthPlaying(true);
   };
 
+  // --- Engine Validation ---
+  const validateWithEngine = async () => {
+    if (!audioBuffer || profileSegments.length === 0) return;
+
+    setEngineValidating(true);
+    setEngineResult(null);
+
+    try {
+      // Convert AudioBuffer to WAV bytes
+      const numSamples = audioBuffer.length;
+      const sampleRate = audioBuffer.sampleRate;
+      const channelData = audioBuffer.getChannelData(0);
+      const int16 = new Int16Array(numSamples);
+      for (let i = 0; i < numSamples; i++) {
+        const s = Math.max(-1, Math.min(1, channelData[i]));
+        int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      }
+
+      const wavHeader = new ArrayBuffer(44);
+      const view = new DataView(wavHeader);
+      const dataSize = int16.byteLength;
+      // RIFF header
+      view.setUint32(0, 0x52494646, false); // "RIFF"
+      view.setUint32(4, 36 + dataSize, true);
+      view.setUint32(8, 0x57415645, false); // "WAVE"
+      // fmt chunk
+      view.setUint32(12, 0x666D7420, false); // "fmt "
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true); // PCM
+      view.setUint16(22, 1, true); // mono
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * 2, true); // byte rate
+      view.setUint16(32, 2, true); // block align
+      view.setUint16(34, 16, true); // bits per sample
+      // data chunk
+      view.setUint32(36, 0x64617461, false); // "data"
+      view.setUint32(40, dataSize, true);
+
+      const wavBlob = new Blob([wavHeader, int16.buffer], { type: 'audio/wav' });
+
+      const yamlStr = generateYAML();
+      const formData = new FormData();
+      formData.append('audio', wavBlob, 'audio.wav');
+      formData.append('profile_yaml', yamlStr);
+
+      const resp = await fetch(`${engineApiUrl}/validate`, { method: 'POST', body: formData });
+      const data = await resp.json();
+
+      if (data.error) throw new Error(data.error);
+
+      setEngineResult(data);
+      showToast(`Engine: ${data.tone_events.length} tones, ${data.detections.length} detection(s)`);
+    } catch (err) {
+      showToast(`Engine validation failed: ${err.message}`);
+    } finally {
+      setEngineValidating(false);
+    }
+  };
+
   // --- YAML Generation (matches engine schema from profiles.py) ---
   const generateYAML = useCallback(() => {
     const profileData = {
@@ -919,6 +984,26 @@ export default function AcousticTuner() {
       }
     });
 
+    // Engine validation tone events (cyan layer)
+    if (showEngineLayer && engineResult?.tone_events?.length > 0) {
+      engineResult.tone_events.forEach(evt => {
+        const x = (evt.timestamp / totalDuration) * width;
+        const w = Math.max(2, (evt.duration / totalDuration) * width);
+        ctx.fillStyle = 'rgba(6, 182, 212, 0.25)';
+        ctx.fillRect(x, 0, w, height);
+        ctx.strokeStyle = '#06b6d4';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([3, 3]);
+        ctx.strokeRect(x, 0, w, height);
+        ctx.setLineDash([]);
+
+        // Frequency label
+        ctx.fillStyle = '#06b6d4';
+        ctx.font = '9px sans-serif';
+        ctx.fillText(`${Math.round(evt.frequency)}Hz`, x + 2, 12);
+      });
+    }
+
     // Threshold line
     const thresholdY = height - effectiveThreshold * height;
     ctx.strokeStyle = '#ef4444';
@@ -929,7 +1014,7 @@ export default function AcousticTuner() {
     ctx.fillStyle = '#ef4444'; ctx.fillRect(0, thresholdY - 10, 55, 20);
     ctx.fillStyle = 'white'; ctx.font = '11px sans-serif';
     ctx.fillText(`${Math.round(effectiveThreshold * 100)}%`, 5, thresholdY + 4);
-  }, [viewMode, envelope, freqTrack, spectrogram, freqResolution, showEnvelope, showPitchTrack, showSpectrogram, effectiveThreshold, evaluatedSegments, audioBuffer, profileSegments]);
+  }, [viewMode, envelope, freqTrack, spectrogram, freqResolution, showEnvelope, showPitchTrack, showSpectrogram, effectiveThreshold, evaluatedSegments, audioBuffer, profileSegments, engineResult, showEngineLayer]);
 
   // --- JSX ---
   return (
@@ -1105,6 +1190,11 @@ export default function AcousticTuner() {
                   <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer hover:text-white transition">
                     <input type="checkbox" checked={showSpectrogram} onChange={e => setShowSpectrogram(e.target.checked)} className="accent-red-500 w-4 h-4" /> Spectrogram Heatmap
                   </label>
+                  {engineResult && (
+                    <label className="flex items-center gap-2 text-sm text-cyan-400 cursor-pointer hover:text-cyan-300 transition">
+                      <input type="checkbox" checked={showEngineLayer} onChange={e => setShowEngineLayer(e.target.checked)} className="accent-cyan-500 w-4 h-4" /> Engine Results
+                    </label>
+                  )}
                 </div>
               ) : (
                 <div className="mt-4 bg-slate-900 p-4 rounded-lg border border-slate-700">
@@ -1322,6 +1412,74 @@ export default function AcousticTuner() {
               <div className="flex gap-2 mt-4">
                 <button onClick={() => addProfileSegment('tone')} className="flex-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg py-2 text-xs font-semibold flex justify-center items-center gap-1 transition text-green-400"><Plus size={14} /> Add Tone</button>
                 <button onClick={() => addProfileSegment('silence')} className="flex-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg py-2 text-xs font-semibold flex justify-center items-center gap-1 transition text-slate-300"><Plus size={14} /> Add Silence</button>
+              </div>
+            </div>
+
+            {/* Engine Validation */}
+            <div className="bg-slate-800 p-6 rounded-xl border border-cyan-500/30 shadow-lg space-y-4">
+              <button
+                onClick={validateWithEngine}
+                disabled={!audioBuffer || profileSegments.length === 0 || engineValidating}
+                className="w-full text-white font-bold py-4 rounded-lg shadow-lg flex items-center justify-center gap-3 transition bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:from-slate-700 disabled:to-slate-700 disabled:text-slate-500"
+              >
+                {engineValidating ? <Loader2 size={24} className="animate-spin" /> : <ShieldCheck size={24} />}
+                <div className="text-left leading-tight">
+                  <div className="text-lg">{engineValidating ? 'Validating...' : 'Validate with Real Engine'}</div>
+                  <div className="text-xs font-normal text-cyan-200">Runs the actual detection pipeline against your audio + profile</div>
+                </div>
+              </button>
+
+              {engineResult && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <span className={`text-sm font-bold ${engineResult.detections.length > 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {engineResult.detections.length > 0
+                        ? `DETECTED (${engineResult.detections.length} match${engineResult.detections.length > 1 ? 'es' : ''})`
+                        : 'NOT DETECTED'}
+                    </span>
+                    <span className="text-xs text-slate-500">{engineResult.tone_events.length} tone event{engineResult.tone_events.length !== 1 ? 's' : ''}</span>
+                  </div>
+
+                  {engineResult.tone_events.length > 0 && (
+                    <div className="max-h-32 overflow-y-auto bg-slate-950 rounded border border-slate-800">
+                      <table className="w-full text-xs">
+                        <thead className="text-slate-500 bg-slate-900 sticky top-0">
+                          <tr>
+                            <th className="text-left px-2 py-1">Time</th>
+                            <th className="text-left px-2 py-1">Freq</th>
+                            <th className="text-left px-2 py-1">Duration</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {engineResult.tone_events.map((evt, i) => (
+                            <tr key={i} className="border-t border-slate-800 text-cyan-400">
+                              <td className="px-2 py-1 font-mono">{evt.timestamp.toFixed(3)}s</td>
+                              <td className="px-2 py-1 font-mono">{Math.round(evt.frequency)}Hz</td>
+                              <td className="px-2 py-1 font-mono">{evt.duration.toFixed(3)}s</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  <div className="text-[10px] text-slate-500 flex flex-wrap gap-3">
+                    <span>chunk: {engineResult.pipeline.chunk_size}</span>
+                    <span>min_tone: {engineResult.pipeline.min_tone_duration}s</span>
+                    <span>dropout: {engineResult.pipeline.dropout_tolerance}s</span>
+                    <span>freq_filter: {engineResult.pipeline.freq_filter_ranges.map(r => `${r.min}-${r.max}Hz`).join(', ')}</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="text-[10px] text-slate-600 flex items-center gap-2">
+                <span>API:</span>
+                <input
+                  type="text"
+                  value={engineApiUrl}
+                  onChange={(e) => setEngineApiUrl(e.target.value)}
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-0.5 text-slate-400 font-mono"
+                />
               </div>
             </div>
 
