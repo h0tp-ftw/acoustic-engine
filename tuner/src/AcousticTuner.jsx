@@ -49,6 +49,8 @@ export default function AcousticTuner() {
   const [cropEnd, setCropEnd] = useState(1);
   const [isSynthPlaying, setIsSynthPlaying] = useState(false);
   const [hoverInfo, setHoverInfo] = useState(null);
+  const [fileName, setFileName] = useState(null);
+  const [toast, setToast] = useState(null);
 
   // --- YAML Import State ---
   const [yamlImportText, setYamlImportText] = useState('');
@@ -72,6 +74,16 @@ export default function AcousticTuner() {
 
   useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
   useEffect(() => { isSynthPlayingRef.current = isSynthPlaying; }, [isSynthPlaying]);
+
+  const showToast = useCallback((msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2000);
+  }, []);
+
+  const ensureAudioContext = useCallback(async () => {
+    const ctx = audioContextRef.current;
+    if (ctx && ctx.state === 'suspended') await ctx.resume();
+  }, []);
 
   // --- Init Audio Context ---
   useEffect(() => {
@@ -151,15 +163,19 @@ export default function AcousticTuner() {
     const file = event.target.files[0];
     if (!file) return;
 
+    await ensureAudioContext();
     const arrayBuffer = await file.arrayBuffer();
     const ctx = audioContextRef.current;
 
     try {
       const buffer = await ctx.decodeAudioData(arrayBuffer);
       setAudioBuffer(buffer);
+      setFileName(file.name);
+      setProfileSegments([]);
       runAnalysis(buffer);
+      showToast(`Loaded ${file.name}`);
     } catch {
-      alert('Error decoding audio file.');
+      alert('Error decoding audio file. Make sure this is a valid audio format.');
     }
   };
 
@@ -171,8 +187,21 @@ export default function AcousticTuner() {
     }
   }, [audioBuffer]);
 
+  // Spacebar = play/pause
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.code === 'Space' && e.target === document.body) {
+        e.preventDefault();
+        togglePlayback();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [audioBuffer, isPlaying, currentTime]);
+
   // --- Playback Controls ---
-  const togglePlayback = () => {
+  const togglePlayback = async () => {
+    await ensureAudioContext();
     const ctx = audioContextRef.current;
     if (!ctx || !audioBuffer) return;
 
@@ -217,7 +246,8 @@ export default function AcousticTuner() {
     }
   };
 
-  const startPlaybackFromTime = (newTime) => {
+  const startPlaybackFromTime = async (newTime) => {
+    await ensureAudioContext();
     const ctx = audioContextRef.current;
     if (!ctx || !audioBuffer) return;
 
@@ -441,6 +471,13 @@ export default function AcousticTuner() {
     });
   }, [analyzerSegments, profileSegments]);
 
+  const matchSummary = useMemo(() => {
+    if (profileSegments.length === 0 || evaluatedSegments.length === 0) return null;
+    const matched = evaluatedSegments.filter(s => s.matched).length;
+    const total = evaluatedSegments.length;
+    return { matched, total, allMatch: matched === total };
+  }, [evaluatedSegments, profileSegments]);
+
   // Auto-extract on first analysis
   useEffect(() => {
     if (profileSegments.length === 0 && analyzerSegments.length > 0) extractToProfile();
@@ -521,6 +558,7 @@ export default function AcousticTuner() {
     setProfileSegments(finalSegments);
     setMinToneDuration(minDuration);
     if (detectedCycles > 1) setCycles(Math.max(2, detectedCycles));
+    showToast(`Extracted ${finalSegments.length} segments${detectedCycles > 1 ? ` (averaged ${detectedCycles} cycles)` : ''}`);
   };
 
   // --- Profile CRUD ---
@@ -578,7 +616,8 @@ export default function AcousticTuner() {
   };
 
   // --- Synthetic Audio ---
-  const toggleSyntheticAudio = () => {
+  const toggleSyntheticAudio = async () => {
+    await ensureAudioContext();
     if (isSynthPlaying) {
       synthSourceNodeRef.current?.stop();
       setIsSynthPlaying(false);
@@ -965,13 +1004,27 @@ export default function AcousticTuner() {
           {/* Left: Analyzer */}
           <div className="space-y-4">
             <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg">
-              {/* View Toggle */}
+              {/* File info + View Toggle */}
+              {audioBuffer && (
+                <div className="flex flex-wrap items-center gap-3 mb-3 text-xs text-slate-400 font-mono bg-slate-900 px-3 py-2 rounded-lg border border-slate-700">
+                  {fileName && <span className="text-slate-300">{fileName}</span>}
+                  <span>{audioBuffer.duration.toFixed(2)}s</span>
+                  <span>{audioBuffer.sampleRate}Hz</span>
+                  <span>{audioBuffer.numberOfChannels}ch</span>
+                  {matchSummary && (
+                    <span className={`ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold ${matchSummary.allMatch ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                      {matchSummary.matched}/{matchSummary.total} segments matched
+                    </span>
+                  )}
+                </div>
+              )}
+
               <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-2 bg-slate-900 p-1 rounded-lg border border-slate-700">
                   <button onClick={() => setViewMode('timeline')} className={`px-4 py-1.5 text-xs font-bold rounded-md transition ${viewMode === 'timeline' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}>Timeline</button>
                   <button onClick={() => setViewMode('spectrum')} className={`flex items-center gap-1 px-4 py-1.5 text-xs font-bold rounded-md transition ${viewMode === 'spectrum' ? 'bg-orange-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}><Radio size={14} /> Live Spectrum</button>
                 </div>
-                <div className="text-sm text-slate-400 font-mono">{audioBuffer ? `${audioBuffer.duration.toFixed(2)}s` : '0.00s'}</div>
+                <div className="text-xs text-slate-500">Space = play/pause</div>
               </div>
 
               {/* Canvas */}
@@ -1075,15 +1128,20 @@ export default function AcousticTuner() {
 
               {/* Crop */}
               <div className="mt-4 p-4 bg-slate-900 border border-slate-700 rounded-lg space-y-3 shadow-sm">
-                <h3 className="text-xs font-semibold text-slate-400 uppercase flex items-center gap-1"><Scissors size={14} /> Crop Tool</h3>
-                <div className="grid grid-cols-5 gap-3 items-end">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold text-slate-400 uppercase flex items-center gap-1"><Scissors size={14} /> Crop Tool</h3>
+                  {audioBuffer && <span className="text-xs font-mono text-purple-400">{cropStart.toFixed(2)}s — {cropEnd.toFixed(2)}s ({(cropEnd - cropStart).toFixed(2)}s)</span>}
+                </div>
+                <div className="grid grid-cols-5 gap-3 items-center">
                   <div className="col-span-2">
+                    <label className="text-[10px] text-slate-500 mb-1 block">Start</label>
                     <input type="range" min="0" max={audioBuffer?.duration || 1} step="0.01" value={cropStart} onChange={(e) => setCropStart(Math.min(parseFloat(e.target.value), cropEnd - 0.1))} className="w-full accent-purple-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer" disabled={!audioBuffer} />
                   </div>
                   <div className="col-span-2">
+                    <label className="text-[10px] text-slate-500 mb-1 block">End</label>
                     <input type="range" min="0" max={audioBuffer?.duration || 1} step="0.01" value={cropEnd} onChange={(e) => setCropEnd(Math.max(parseFloat(e.target.value), cropStart + 0.1))} className="w-full accent-purple-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer" disabled={!audioBuffer} />
                   </div>
-                  <button onClick={applyCrop} disabled={!audioBuffer} className="col-span-1 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-700 disabled:text-slate-500 text-white text-xs font-medium py-1.5 rounded transition">Apply</button>
+                  <button onClick={applyCrop} disabled={!audioBuffer} className="col-span-1 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-700 disabled:text-slate-500 text-white text-xs font-medium py-2 rounded transition mt-4">Crop</button>
                 </div>
               </div>
 
@@ -1136,6 +1194,52 @@ export default function AcousticTuner() {
                   <Wand2 size={18} /> Extract to Profile {autoCycleCount > 1 ? `(averaging ${autoCycleCount} cycles)` : ''}
                 </button>
               </div>
+
+              {/* Detected Segments Table */}
+              {evaluatedSegments.length > 0 && (
+                <div className="mt-4 bg-slate-900 border border-slate-700 rounded-lg overflow-hidden">
+                  <div className="px-4 py-2 border-b border-slate-700 flex items-center justify-between">
+                    <h3 className="text-xs font-semibold text-slate-400 uppercase">Detected Segments ({evaluatedSegments.length})</h3>
+                    {matchSummary && (
+                      <span className={`text-[10px] font-bold ${matchSummary.allMatch ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        {matchSummary.allMatch ? 'All matched' : `${matchSummary.total - matchSummary.matched} unmatched`}
+                      </span>
+                    )}
+                  </div>
+                  <div className="max-h-48 overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <thead className="text-slate-500 bg-slate-950 sticky top-0">
+                        <tr>
+                          <th className="text-left px-3 py-1.5 font-medium">Type</th>
+                          <th className="text-left px-3 py-1.5 font-medium">Freq (Hz)</th>
+                          <th className="text-left px-3 py-1.5 font-medium">Duration</th>
+                          <th className="text-left px-3 py-1.5 font-medium">Start</th>
+                          {profileSegments.length > 0 && <th className="text-center px-3 py-1.5 font-medium">Match</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {evaluatedSegments.map((seg, i) => (
+                          <tr key={i} className="border-t border-slate-800 hover:bg-slate-800/50">
+                            <td className={`px-3 py-1.5 font-bold ${seg.type === 'tone' ? 'text-green-400' : 'text-slate-500'}`}>
+                              {seg.type === 'tone' ? 'TONE' : 'SILENCE'}
+                            </td>
+                            <td className="px-3 py-1.5 font-mono text-slate-300">
+                              {seg.type === 'tone' ? `${Math.round(seg.freq)}` : '—'}
+                            </td>
+                            <td className="px-3 py-1.5 font-mono text-slate-300">{seg.duration.toFixed(3)}s</td>
+                            <td className="px-3 py-1.5 font-mono text-slate-400">{seg.start.toFixed(2)}s</td>
+                            {profileSegments.length > 0 && (
+                              <td className="px-3 py-1.5 text-center">
+                                <span className={`inline-block w-2 h-2 rounded-full ${seg.matched ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1235,7 +1339,7 @@ export default function AcousticTuner() {
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-xs font-semibold text-slate-400 uppercase">Generated YAML</span>
                   <div className="flex gap-2">
-                    <button onClick={() => navigator.clipboard.writeText(generateYAML())} className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-lg flex items-center gap-1 transition">
+                    <button onClick={() => { navigator.clipboard.writeText(generateYAML()); showToast('YAML copied to clipboard'); }} className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-lg flex items-center gap-1 transition">
                       <Copy size={14} /> Copy
                     </button>
                     <button onClick={downloadYAML} className="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg flex items-center gap-1 transition">
@@ -1251,6 +1355,13 @@ export default function AcousticTuner() {
           </div>
         </div>
       </div>
+
+      {/* Toast notification */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-700 text-white text-sm px-5 py-2.5 rounded-lg shadow-xl border border-slate-600 animate-[fadeIn_0.15s_ease-out]">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
