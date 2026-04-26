@@ -234,18 +234,8 @@ class EngineConfig:
             # Avoid going too low (noise floor)
             target_min_mag = max(target_min_mag, 1.0)
 
-            # Also scale frequency_tolerance UP
-            # Smaller N = wider bins = more jitter.
-            # 4096 -> ~10Hz bins. 1024 -> ~43Hz bins.
-            # Scale tolerance inversely to chunks size (approx)
-            bin_ratio = 4096.0 / chunk_size
-            # Base tolerance 50.0 (covering ~5 bins at 4096).
-            # For 1024, we need ~150-200.
-            # Let's scale by sqrt(bin_ratio) or linear?
-            # Linear bin width growth -> Linear tolerance growth?
-            # 50 * 4 = 200Hz. This might be too wide, but needed if jitter is >86Hz.
-            # Let's try scaling max.
-            target_freq_tol = 50.0 * (4096.0 / chunk_size)  # Full linear scaling = 200Hz
+            # Scale frequency_tolerance up for smaller FFT (wider bins = more jitter)
+            target_freq_tol = 50.0 * (4096.0 / chunk_size)
 
         else:
             target_freq_tol = 50.0

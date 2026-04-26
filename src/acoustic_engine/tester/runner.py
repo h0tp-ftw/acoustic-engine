@@ -57,14 +57,11 @@ class TestRunner:
         if chunk_size is None:
             chunk_size = AudioSettings().chunk_size
 
-        # High-resolution mode defaults
         if high_resolution:
-            default_chunk = 512
             default_min_dur = 0.02
             default_dropout = 0.04
             self.display.info("High-resolution mode enabled")
         else:
-            default_chunk = None  # Use global default
             default_min_dur = DEFAULT_MIN_TONE_DURATION
             default_dropout = DEFAULT_DROPOUT_TOLERANCE
 

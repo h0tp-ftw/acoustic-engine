@@ -30,20 +30,20 @@ def main():
 
     # 1. Determine configuration sources
     config_paths = args.config
-    
+
     # If no flags, check environment variable
     if not config_paths:
         env_cfg = os.getenv("ACOUSTIC_CONFIG")
         if env_cfg:
             logger.info(f"Using configuration from environment (ACOUSTIC_CONFIG): {env_cfg}")
             config_paths = [env_cfg]
-            
+
     # If still no source, check for default config.yaml
     if not config_paths:
         if os.path.exists("config.yaml"):
             logger.info("Using default configuration file (config.yaml)")
             config_paths = ["config.yaml"]
-            
+
     if not config_paths:
         logger.error("No configuration sources found. Use --config, ACOUSTIC_CONFIG, or provide a config.yaml")
         sys.exit(1)

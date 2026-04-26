@@ -11,10 +11,10 @@ Or import and mount on an existing FastAPI app:
     from acoustic_engine.tuner.validate import app
 """
 
+import argparse
 import io
 import wave
-import argparse
-from typing import List, Optional
+from typing import List
 
 import numpy as np
 import yaml
@@ -248,8 +248,8 @@ def main():
     parser.add_argument("--host", default="127.0.0.1")
     args = parser.parse_args()
     print(f"Validation API starting on http://{args.host}:{args.port}")
-    print(f"  POST /validate  — upload audio + profile YAML")
-    print(f"  GET  /health    — health check")
+    print("  POST /validate  — upload audio + profile YAML")
+    print("  GET  /health    — health check")
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
 
