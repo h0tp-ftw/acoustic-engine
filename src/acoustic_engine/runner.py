@@ -138,14 +138,83 @@ def main():
                 f"  + Added Pipeline: {profile.name} (Sensitivity: {final_config.min_magnitude})"
             )
 
-    # 4. Start Parallel Engine
+    # 4. Check MQTT Config and Initialize
+    mqtt_config = None
+    for cfg in configs:
+        if cfg.mqtt and cfg.mqtt.enabled:
+            mqtt_config = cfg.mqtt
+            break
+
+    mqtt_client = None
+    if mqtt_config:
+        try:
+            import json
+            import datetime
+            import paho.mqtt.client as mqtt
+
+            # Setup MQTT client (compatible with paho-mqtt v1 and v2)
+            try:
+                mqtt_client = mqtt.Client(
+                    callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
+                    client_id=mqtt_config.client_id,
+                )
+            except AttributeError:
+                mqtt_client = mqtt.Client(client_id=mqtt_config.client_id)
+
+            if mqtt_config.username and mqtt_config.password:
+                mqtt_client.username_pw_set(mqtt_config.username, mqtt_config.password)
+
+            logger.info(f"Connecting to MQTT broker at {mqtt_config.broker}:{mqtt_config.port}...")
+            mqtt_client.connect(mqtt_config.broker, mqtt_config.port, keepalive=60)
+            mqtt_client.loop_start()
+            logger.info("MQTT connection established.")
+        except Exception as e:
+            logger.error(f"Failed to initialize MQTT client: {e}")
+            mqtt_client = None
+
+    def handle_detection(name):
+        logger.info(f"🚨 DETECTED: {name}")
+        if mqtt_client:
+            try:
+                import json
+                import datetime
+
+                payload = json.dumps(
+                    {
+                        "event": "detected",
+                        "profile_name": name,
+                        "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+                    }
+                )
+                mqtt_client.publish(mqtt_config.topic, payload)
+            except Exception as e:
+                logger.error(f"Failed to publish MQTT detection message: {e}")
+
+    def handle_match(match):
+        logger.info(f"match details: {match.profile_name} cycle={match.cycle_count}")
+        if mqtt_client:
+            try:
+                import json
+                import datetime
+
+                payload = json.dumps(
+                    {
+                        "event": "matched",
+                        "profile_name": match.profile_name,
+                        "cycle_count": match.cycle_count,
+                        "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+                    }
+                )
+                mqtt_client.publish(mqtt_config.topic, payload)
+            except Exception as e:
+                logger.error(f"Failed to publish MQTT match message: {e}")
+
+    # 5. Start Parallel Engine
     engine = ParallelEngine(
         pipelines=pipelines,
         audio_config=best_audio_config,
-        on_detection=lambda name: logger.info(f"🚨 DETECTED: {name}"),
-        on_match=lambda match: logger.info(
-            f"match details: {match.profile_name} cycle={match.cycle_count}"
-        ),
+        on_detection=handle_detection,
+        on_match=handle_match,
     )
 
     try:
@@ -153,6 +222,10 @@ def main():
     except KeyboardInterrupt:
         logger.info("Stopping...")
         engine.stop()
+        if mqtt_client:
+            logger.info("Disconnecting MQTT client...")
+            mqtt_client.loop_stop()
+            mqtt_client.disconnect()
 
 
 if __name__ == "__main__":

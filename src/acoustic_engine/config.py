@@ -289,6 +289,29 @@ class EngineConfig:
 
 
 @dataclass
+class MQTTConfig:
+    """MQTT notification settings.
+
+    Attributes:
+        enabled: Whether MQTT publishing is enabled.
+        broker: MQTT broker address.
+        port: MQTT broker port.
+        username: Optional username for authentication.
+        password: Optional password for authentication.
+        topic: Topic to publish alerts to.
+        client_id: Optional client ID.
+    """
+
+    enabled: bool = False
+    broker: str = "localhost"
+    port: int = 1883
+    username: Optional[str] = None
+    password: Optional[str] = None
+    topic: str = "acoustic_engine/alerts"
+    client_id: Optional[str] = None
+
+
+@dataclass
 class GlobalConfig:
     """Unified configuration for the entire application.
 
@@ -300,6 +323,7 @@ class GlobalConfig:
     system: SystemConfig = field(default_factory=SystemConfig)
     audio: AudioSettings = field(default_factory=AudioSettings)
     profiles: List[AlarmProfile] = field(default_factory=list)
+    mqtt: MQTTConfig = field(default_factory=MQTTConfig)
     # The calculated engine config based on the above
     engine: EngineConfig = field(default_factory=EngineConfig)
 
@@ -435,9 +459,22 @@ class GlobalConfig:
             if "duration_relax_high" in engine_data:
                 engine_config.duration_relax_high = float(engine_data["duration_relax_high"])
 
+        # 6. Parse MQTT Settings
+        mqtt_data = data.get("mqtt", {})
+        mqtt_config = MQTTConfig(
+            enabled=mqtt_data.get("enabled", False),
+            broker=mqtt_data.get("broker", "localhost"),
+            port=mqtt_data.get("port", 1883),
+            username=mqtt_data.get("username"),
+            password=mqtt_data.get("password"),
+            topic=mqtt_data.get("topic", "acoustic_engine/alerts"),
+            client_id=mqtt_data.get("client_id"),
+        )
+
         return cls(
             system=system_config,
             audio=audio_config,
             profiles=profiles,
+            mqtt=mqtt_config,
             engine=engine_config,
         )

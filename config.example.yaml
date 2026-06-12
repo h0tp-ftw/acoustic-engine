@@ -38,3 +38,14 @@ profiles:
   # Option 2: Include external profile files (supports globs)
   # - include: "profiles/*.yaml"
   # - include: "profiles/smoke_alarm.yaml"
+
+# MQTT Notification Settings (Optional)
+# Enable this to publish alerts to an MQTT broker (e.g., Home Assistant, Node-RED, or Alexa bridges)
+mqtt:
+  enabled: false
+  broker: "localhost"
+  port: 1883
+  topic: "acoustic_engine/alerts"
+  # username: "mqtt_user"
+  # password: "mqtt_password"
+  # client_id: "acoustic_alarm_monitor"
