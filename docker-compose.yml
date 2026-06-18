@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   engine:
     build: .
@@ -10,6 +8,7 @@ services:
       - /dev/snd:/dev/snd
     environment:
       - ACOUSTIC_CONFIG=config.example.yaml
+    # Uses the image default: `acoustic-engine run` (honors ACOUSTIC_CONFIG).
 
   validate:
     build: .
@@ -20,7 +19,7 @@ services:
       - .:/app
     environment:
       - PYTHONUNBUFFERED=1
-    command: python -m acoustic_engine.tuner --port 8787 --host 0.0.0.0
+    command: acoustic-engine serve --port 8787 --host 0.0.0.0
 
   tests:
     build: .

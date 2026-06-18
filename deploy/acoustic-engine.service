@@ -1,0 +1,34 @@
+# systemd unit for running the Acoustic Engine as a background service that
+# starts on boot and restarts on failure.
+#
+# Install:
+#   sudo cp deploy/acoustic-engine.service /etc/systemd/system/
+#   sudo mkdir -p /etc/acoustic-engine && sudo cp config.example.yaml /etc/acoustic-engine/config.yaml
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now acoustic-engine
+#   journalctl -u acoustic-engine -f      # watch detections live
+#
+# Edit User= and ExecStart below to match your setup.
+
+[Unit]
+Description=Acoustic Engine - real-time alarm sound detection
+After=sound.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# A user that can access the microphone. On Raspberry Pi OS the 'audio' group
+# grants ALSA access; adjust the user to one that exists on your device.
+User=pi
+SupplementaryGroups=audio
+
+# Detect from a config file. For a zero-config start, swap the argument for a
+# preset, e.g.:  ExecStart=/usr/local/bin/acoustic-engine run --preset smoke_t3
+ExecStart=/usr/local/bin/acoustic-engine run --config /etc/acoustic-engine/config.yaml
+
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

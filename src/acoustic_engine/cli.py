@@ -45,12 +45,18 @@ def cmd_run(args: argparse.Namespace) -> int:
     # audio stack (PyAudio) unless detection is actually requested.
     from . import runner
 
-    if args.config:
-        configs = runner.load_configs(args.config)
+    config_paths = list(args.config) if args.config else []
+    # With no explicit source, fall back to ACOUSTIC_CONFIG / ./config.yaml,
+    # so `acoustic-engine run` is a drop-in superset of the old runner.
+    if not config_paths and not args.preset and not args.profile:
+        config_paths = runner._resolve_config_paths(None)
+
+    if config_paths:
+        configs = runner.load_configs(config_paths)
         if not configs:
             logger.error("No valid configurations loaded.")
             return 1
-        pipelines, audio = runner.build_pipelines(configs, args.config)
+        pipelines, audio = runner.build_pipelines(configs, config_paths)
         # Allow mixing a config with extra ad-hoc presets/profiles.
         pipelines = list(pipelines) + list(_gather_adhoc_profiles(args))
         mqtt_config = next((c.mqtt for c in configs if c.mqtt and c.mqtt.enabled), None)

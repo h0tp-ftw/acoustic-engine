@@ -1,4 +1,7 @@
 recursive-include src/acoustic_engine/tuner *.html *.css *.js
+recursive-include src/acoustic_engine *.yaml
+recursive-include deploy *
 include README.md
 include LICENSE
 include pyproject.toml
+include requirements.txt

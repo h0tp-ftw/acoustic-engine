@@ -16,9 +16,10 @@ WORKDIR /app
 COPY . .
 
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -e ".[dev,tuner]"
+    pip install --no-cache-dir -e ".[dev,tuner,mqtt]"
 
 ENV ACOUSTIC_CONFIG=""
 
-ENTRYPOINT ["python", "-m", "acoustic_engine.runner"]
-CMD []
+# Default to running detection (honors ACOUSTIC_CONFIG). Override the command
+# for other subcommands, e.g. `docker run <img> acoustic-engine serve --host 0.0.0.0`.
+CMD ["acoustic-engine", "run"]

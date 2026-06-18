@@ -1,11 +1,16 @@
+# Full dependency set. For a minimal install use `pip install acoustic-engine`
+# (core only) and add extras as needed: [mqtt], [tuner], [dev], [audio].
+
 # Core Engine Dependencies
 numpy>=1.21.0
 scipy>=1.7.0
 PyAudio>=0.2.11
 PyYAML>=6.0
+
+# Optional: MQTT notifications  (extra: mqtt)
 paho-mqtt>=2.1.0
 
-# Tuner Validation API
+# Optional: Tuner Validation API  (extra: tuner)
 fastapi>=0.100.0
 uvicorn>=0.20.0
 python-multipart>=0.0.6

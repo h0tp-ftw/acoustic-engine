@@ -31,7 +31,6 @@ dependencies = [
     "scipy>=1.7.0",
     "PyAudio>=0.2.11",
     "PyYAML>=6.0",
-    "paho-mqtt>=2.1.0",
 ]
 
 [project.optional-dependencies]
@@ -41,6 +40,9 @@ dev = [
     "black>=23.0",
     "ruff>=0.1.0",
     "httpx>=0.24.0",
+]
+mqtt = [
+    "paho-mqtt>=2.1.0",  # Publish detections to an MQTT broker (Home Assistant, etc.)
 ]
 audio = [
     "pydub>=0.25.0",  # For MP3, OGG, FLAC support (requires ffmpeg)

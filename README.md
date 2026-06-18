@@ -25,39 +25,48 @@ A high-performance, noise-resilient DSP library designed to detect specific acou
 ### Installation
 
 ```bash
+# From a clone (PyAudio needs portaudio: `apt install portaudio19-dev` on Debian/Ubuntu)
 git clone https://github.com/h0tp-ftw/acoustic-engine.git
 cd acoustic-engine
+pip install -e .
 
-# Create environment
-python -m venv venv
-
-# Activate (Windows)
-.\venv\Scripts\activate
-# Activate (Linux/Mac)
-source venv/bin/activate
-
-# Install with all extras
-pip install -e ".[tuner,dev]"
+# Optional extras: mqtt (publish detections), tuner (browser app API), dev (tests)
+pip install -e ".[mqtt,tuner,dev]"
 ```
 
-### Run the Engine
+### Quick Start (CLI)
+
+Everything is behind one `acoustic-engine` command. The common cases need **no
+DSP knowledge and no config file**:
 
 ```bash
-# Run detection with a configuration file
-python -m acoustic_engine.runner --config config.example.yaml
+# 1. What can I detect out of the box?
+acoustic-engine profiles
 
-# Test a profile against an audio file
-python -m acoustic_engine.tester --profile profiles/smoke_alarm.yaml --audio recording.wav -v
+# 2. Listen for a standard smoke alarm (ISO 8201 T3) — zero config
+acoustic-engine run --preset smoke_t3
 
-# Test with live microphone
-python -m acoustic_engine.tester --profile profiles/ --live --duration 60
+# 3. Have a recording of YOUR alarm? Turn it into a profile automatically
+acoustic-engine learn my_alarm.wav --name "My Dryer"      # writes my_alarm.yaml
+acoustic-engine test --profile my_alarm.yaml --audio my_alarm.wav -v   # verify it
+acoustic-engine run --profile my_alarm.yaml               # deploy it
+
+# 4. Production: run from a config file (multiple alarms, MQTT, tuning)
+acoustic-engine run --config config.example.yaml
 ```
 
-### Docker (Linux Only)
+> The three tiers: **presets** (zero config) → **`learn` + hand-edit the YAML
+> shape** (frequencies/durations, no DSP) → **advanced engine tuning** (you
+> rarely need this). You only go as deep as your sound requires.
+
+### Docker
+
+The mic is shared into the container via `/dev/snd`. See [deploy/README.md](deploy/README.md)
+for systemd and Docker details.
 
 ```bash
-docker run -it --rm --device /dev/snd -v $(pwd):/app python:3.11-slim-bookworm \
-  sh -c "apt-get update -qq && apt-get install -y portaudio19-dev gcc > /dev/null && pip install acoustic-engine && python -m acoustic_engine.runner --help"
+docker compose up engine          # run detection
+docker compose run --rm engine acoustic-engine run --preset smoke_t3
 ```
 
 ---
@@ -86,7 +95,7 @@ The tuner includes a validation API that runs your audio + profile through the *
 
 ```bash
 # Terminal 1: Start the validation API
-python -m acoustic_engine.tuner.validate --port 8787
+acoustic-engine serve --port 8787
 
 # Terminal 2: Start the tuner
 cd tuner && npm run dev

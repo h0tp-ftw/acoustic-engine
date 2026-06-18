@@ -5,8 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Run Commands
 
 ```bash
-# Install (editable with all extras)
-pip install -e ".[tuner,dev]"
+# Install (editable; extras: mqtt, tuner, dev)
+pip install -e ".[tuner,dev,mqtt]"
 
 # Run tests
 pytest tests/ -v
@@ -18,17 +18,17 @@ pytest tests/test_hybrid.py::test_full_pipeline_detects_synthetic_alarm -v
 # Lint
 ruff check src/
 
-# Production runner
+# Unified CLI (preferred entry point — see src/acoustic_engine/cli.py)
+acoustic-engine profiles                                   # list built-in presets
+acoustic-engine run --preset smoke_t3                      # detect, zero config
+acoustic-engine run --config config.example.yaml           # production
+acoustic-engine learn recording.wav --name "My Alarm"      # recording -> profile YAML
+acoustic-engine test --profile profiles/smoke_alarm.yaml --audio recording.wav -v
+acoustic-engine serve --port 8787                          # validation API for the tuner
+
+# Equivalent module forms (still work; the CLI wraps these)
 python -m acoustic_engine.runner --config config.example.yaml
-
-# Test a profile against audio
-python -m acoustic_engine.tester --profile profiles/smoke_alarm.yaml --audio recording.wav -v
-
-# Live mic testing with noise injection
 python -m acoustic_engine.tester --profile profiles/ --live --duration 60 --noise 0.3 --noise-type white
-
-# Validation API (used by the React tuner)
-python -m acoustic_engine.tuner --port 8787
 
 # React tuner
 cd tuner && npm install && npm run dev
@@ -50,7 +50,7 @@ The engine is a 4-stage DSP pipeline: **Input → Processing → Analysis → Ou
 
 ### Resolution Negotiation (cross-cutting)
 
-`EngineConfig.from_profiles()` computes the **finest resolution** needed across all profiles. A single EventGenerator runs at that resolution. Each profile's WindowedMatcher applies its own confirmation logic independently. If any profile needs min_tone_duration < 0.05s, chunk_size auto-reduces from 4096 to 2048 and min_magnitude scales proportionally.
+`EngineConfig.from_profiles()` computes the **finest resolution** needed across all profiles. A single EventGenerator runs at that resolution. Each profile's WindowedMatcher applies its own confirmation logic independently. Audio defaults are unified via named constants in `config.py` (`DEFAULT_CHUNK_SIZE=1024`, `HIGHRES_CHUNK_SIZE=2048`) so every entry point agrees. If a profile needs fast events, `from_profiles` caps a larger base chunk_size at 2048; the per-profile `from_single_profile` path (used by `ParallelEngine`) additionally scales `min_magnitude` and `frequency_tolerance` to the chosen chunk size.
 
 ### Parallel Engine
 
@@ -59,6 +59,10 @@ The engine is a 4-stage DSP pipeline: **Input → Processing → Analysis → Ou
 ### Browser Tuner ↔ Python Engine
 
 The React app (`tuner/`) does its own client-side FFT analysis for interactive feedback. The validation API (`src/acoustic_engine/tuner/validate.py`) runs the **real** engine pipeline (SpectralMonitor → FrequencyFilter → EventGenerator → WindowedMatcher) on uploaded audio + profile YAML, returning tone events and pattern matches. The browser overlays both results so users can see where they diverge.
+
+### CLI, Presets, Learn (the easy path)
+
+`cli.py` is the single `acoustic-engine` entry point (subcommands run/learn/test/profiles/serve); `runner.py` is factored into reusable pieces (`load_configs`, `build_pipelines`, `init_mqtt`, `run_pipelines`) that the CLI shares. `presets/` ships ready-to-use standardized profiles (ISO 8201 T3/T4) loadable by name via `load_preset()`. `learn.py` runs the real DSP front-end on a recording, collapses harmonics, splits the signal into repeated cycles and averages the modal cycle into a profile — the on-device "record → profile → detect" loop. Profiles are validated at YAML load time (`profiles.validate_profile`, raising `ProfileError`); config errors raise `ConfigError` (`errors.py`).
 
 ## Key Data Flow
 
@@ -69,7 +73,7 @@ Audio chunk (int16) → `SpectralMonitor.process()` → `List[Peak]` → `Freque
 ```yaml
 name: "Alarm_Name"
 confirmation_cycles: 2
-reset_timeout: 10.0           # optional, seconds of silence before reset
+reset_timeout: 10.0           # optional, cooldown seconds before re-arming after a detection
 resolution:                    # optional, per-profile override
   min_tone_duration: 0.05
   dropout_tolerance: 0.05
