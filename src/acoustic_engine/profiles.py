@@ -12,9 +12,91 @@ from typing import List, Union
 
 import yaml
 
+from .errors import ProfileError
 from .models import AlarmProfile, Range, ResolutionConfig, Segment
 
 logger = logging.getLogger(__name__)
+
+VALID_SEGMENT_TYPES = ("tone", "silence", "any")
+
+
+def validate_profile(profile: AlarmProfile) -> None:
+    """Validate an alarm profile, raising ProfileError with a clear message.
+
+    Catches the mistakes that otherwise make the engine silently never fire:
+    a tone with no frequency range, an inverted min/max, a profile with no
+    tones to match, etc. Messages name the profile and segment at fault.
+
+    Args:
+        profile: The AlarmProfile to check.
+
+    Raises:
+        ProfileError: If the profile is structurally invalid.
+    """
+    name = profile.name or "UnnamedProfile"
+
+    if not profile.segments:
+        raise ProfileError(
+            f"Profile '{name}' has no segments. Add at least one 'tone' segment "
+            "with a frequency range."
+        )
+
+    tone_count = 0
+    for i, seg in enumerate(profile.segments):
+        where = f"Profile '{name}', segment {i} ({seg.type})"
+
+        if seg.type not in VALID_SEGMENT_TYPES:
+            raise ProfileError(
+                f"{where}: unknown type '{seg.type}'. "
+                f"Expected one of {', '.join(VALID_SEGMENT_TYPES)}."
+            )
+
+        if seg.type == "tone":
+            tone_count += 1
+            if seg.frequency is None:
+                raise ProfileError(
+                    f"{where} has no frequency range, so it can never match. "
+                    "Add 'frequency: {min: <hz>, max: <hz>}' (or a single value)."
+                )
+            if seg.frequency.min <= 0 or seg.frequency.max <= 0:
+                raise ProfileError(
+                    f"{where}: frequency must be positive "
+                    f"(got {seg.frequency.min}-{seg.frequency.max} Hz)."
+                )
+            if seg.frequency.min > seg.frequency.max:
+                raise ProfileError(
+                    f"{where}: frequency min ({seg.frequency.min}) is greater than "
+                    f"max ({seg.frequency.max}). Did you swap them?"
+                )
+
+        if seg.duration.min < 0 or seg.duration.max < 0:
+            raise ProfileError(
+                f"{where}: duration cannot be negative "
+                f"(got {seg.duration.min}-{seg.duration.max} s)."
+            )
+        if seg.duration.min > seg.duration.max:
+            raise ProfileError(
+                f"{where}: duration min ({seg.duration.min}s) is greater than "
+                f"max ({seg.duration.max}s). Did you swap them?"
+            )
+
+    if tone_count == 0:
+        raise ProfileError(
+            f"Profile '{name}' has no 'tone' segments, so it can never match. "
+            "A pattern needs at least one tone with a frequency range."
+        )
+
+    if profile.confirmation_cycles < 1:
+        raise ProfileError(
+            f"Profile '{name}': confirmation_cycles must be at least 1 "
+            f"(got {profile.confirmation_cycles})."
+        )
+
+    if profile.reset_timeout < 0:
+        raise ProfileError(
+            f"Profile '{name}': reset_timeout cannot be negative "
+            f"(got {profile.reset_timeout})."
+        )
 
 
 def load_profile_from_yaml(path: Union[str, Path]) -> AlarmProfile:
@@ -146,7 +228,7 @@ def _parse_profile(data: dict) -> AlarmProfile:
             dropout_tolerance=float(res_data.get("dropout_tolerance", 0.15)),
         )
 
-    return AlarmProfile(
+    profile = AlarmProfile(
         name=data.get("name", "UnnamedProfile"),
         segments=segments,
         confirmation_cycles=int(data.get("confirmation_cycles", 1)),
@@ -155,6 +237,8 @@ def _parse_profile(data: dict) -> AlarmProfile:
         eval_frequency=float(data.get("eval_frequency", 0.5)),
         resolution=resolution,
     )
+    validate_profile(profile)
+    return profile
 
 
 def save_profile_to_yaml(profile: AlarmProfile, path: Union[str, Path]) -> None:

@@ -20,6 +20,7 @@ from .analysis.event_buffer import EventBuffer
 from .analysis.windowed_matcher import WindowedMatcher
 from .config import EngineConfig, compute_finest_resolution
 from .engine import Engine
+from .errors import AcousticEngineError, ConfigError, ProfileError
 from .input.listener import AudioConfig, AudioListener
 from .models import AlarmProfile, Range, ResolutionConfig, Segment
 from .processing.filter import FrequencyFilter
@@ -27,6 +28,7 @@ from .profiles import (
     load_profile_from_yaml,
     load_profiles_from_yaml,
     save_profile_to_yaml,
+    validate_profile,
 )
 
 __all__ = [
@@ -51,4 +53,9 @@ __all__ = [
     "load_profile_from_yaml",
     "load_profiles_from_yaml",
     "save_profile_to_yaml",
+    "validate_profile",
+    # Errors
+    "AcousticEngineError",
+    "ConfigError",
+    "ProfileError",
 ]

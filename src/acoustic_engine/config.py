@@ -6,18 +6,80 @@ optimal settings based on loaded profiles and supports loading a unified
 global configuration file.
 """
 
+import glob
 import logging
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
 import yaml
 
+from .errors import ConfigError
 from .models import AlarmProfile, ResolutionConfig
 from .profiles import _parse_profile, load_profiles_from_yaml
 
 logger = logging.getLogger(__name__)
+
+_PROFILE_SUFFIXES = (".yaml", ".yml")
+
+
+def _resolve_include(spec: str, base_dir: Path) -> List[Path]:
+    """Resolve an ``include:`` spec to a sorted list of profile YAML files.
+
+    Supports three forms, resolved against ``base_dir`` (the config file's
+    directory) when not absolute:
+
+    - a single file: ``profiles/smoke_alarm.yaml``
+    - a shell glob: ``profiles/*.yaml``
+    - a directory: ``profiles/`` (loads every ``*.yaml``/``*.yml`` inside,
+      non-recursively)
+
+    Returns an empty list if nothing matched; the caller decides whether that
+    is an error.
+    """
+    raw = spec if os.path.isabs(spec) else str(base_dir / spec)
+
+    if any(ch in raw for ch in "*?["):
+        return sorted(p for p in (Path(m) for m in glob.glob(raw)) if p.is_file())
+
+    p = Path(raw)
+    if p.is_dir():
+        return sorted(
+            f for f in p.iterdir() if f.is_file() and f.suffix.lower() in _PROFILE_SUFFIXES
+        )
+    if p.is_file():
+        return [p]
+    return []
+
+
+def _apply_engine_overrides(engine_config: "EngineConfig", engine_data: dict) -> None:
+    """Apply explicit ``engine:`` settings from YAML onto an EngineConfig.
+
+    Generic over every EngineConfig field, so adding a knob never requires
+    touching this function. Unknown keys raise ConfigError (catching typos
+    like ``min_magnatude``) instead of being silently ignored.
+    """
+    valid = {f.name for f in fields(EngineConfig)}
+    for key, value in engine_data.items():
+        if key not in valid:
+            raise ConfigError(
+                f"Unknown engine setting '{key}'. Valid settings are: "
+                f"{', '.join(sorted(valid))}."
+            )
+        current = getattr(engine_config, key)
+        try:
+            if isinstance(current, bool):
+                cast: object = bool(value)
+            elif isinstance(current, int):
+                cast = int(value)
+            elif isinstance(current, float):
+                cast = float(value)
+            else:
+                cast = value
+        except (TypeError, ValueError):
+            raise ConfigError(f"engine.{key} must be a number, got {value!r}.") from None
+        setattr(engine_config, key, cast)
 
 # Default resolution values
 DEFAULT_MIN_TONE_DURATION = 0.04  # seconds (requires ~2 chunks to confirm)
@@ -372,39 +434,43 @@ class GlobalConfig:
             channels=audio_data.get("channels", 1),
         )
 
-        # 3. Parse Profiles
+        # 3. Parse Profiles (inline definitions and/or external includes).
         profiles: List[AlarmProfile] = []
         raw_profiles = data.get("profiles", [])
 
-        # Support just a list or a dict-based inclusion
-        if isinstance(raw_profiles, list):
-            for item in raw_profiles:
-                if "include" in item:
-                    # Include external file(s)
-                    include_path = item["include"]
-                    # Handle relative paths relative to the config file
-                    if not os.path.isabs(include_path):
-                        include_path = path.parent / include_path
+        if not isinstance(raw_profiles, list):
+            raise ConfigError(
+                f"'profiles' in {path} must be a list of profiles and/or includes, "
+                f"got {type(raw_profiles).__name__}."
+            )
 
-                    # Use glob expansion if * is present
-                    if "*" in str(include_path):
-                        # Logic for glob expansion could be added here
-                        # For now, simplistic exact path loading
-                        pass
+        for item in raw_profiles:
+            if not isinstance(item, dict):
+                raise ConfigError(
+                    f"Each entry under 'profiles' in {path} must be a mapping "
+                    f"(an inline profile or an 'include:'), got {item!r}."
+                )
 
-                    # If it's a file, load it
-                    p_path = Path(include_path)
-                    if p_path.is_file():
-                        loaded = load_profiles_from_yaml(p_path)
-                        profiles.extend(loaded)
-                    elif p_path.is_dir():
-                        # Determine handling for directories if needed
-                        pass
-                    else:
-                        logger.warning(f"Included profile path not found: {include_path}")
-                elif "name" in item:
-                    # Inline profile definition
-                    profiles.append(_parse_profile(item))
+            if "include" in item:
+                spec = str(item["include"])
+                files = _resolve_include(spec, path.parent)
+                if not files:
+                    raise ConfigError(
+                        f"include '{spec}' (in {path}) matched no profile files. "
+                        "Paths and globs are resolved relative to the config file; "
+                        "check the path is correct."
+                    )
+                for f in files:
+                    profiles.extend(load_profiles_from_yaml(f))
+                    logger.info(f"Included profiles from {f}")
+            elif "name" in item or "segments" in item:
+                # Inline profile definition
+                profiles.append(_parse_profile(item))
+            else:
+                raise ConfigError(
+                    f"Profile entry in {path} has neither 'include', 'name', nor "
+                    f"'segments': {item!r}"
+                )
 
         # 4. Generate Engine Config
         # We use the profiles to determine the best resolution
@@ -414,50 +480,17 @@ class GlobalConfig:
             chunk_size=audio_config.chunk_size,
         )
 
-        # 5. Apply Engine Overrides from YAML
-        # Allow explicit configuration to override profile-based defaults
-        engine_data = data.get("engine", {})
+        # 5. Apply explicit engine overrides from YAML.
+        # Generic over every EngineConfig field, and reports unknown keys
+        # (typos) instead of silently dropping them.
+        engine_data = data.get("engine", {}) or {}
         if engine_data:
-            if "chunk_size" in engine_data:
-                engine_config.chunk_size = int(engine_data["chunk_size"])
-            if "min_tone_duration" in engine_data:
-                engine_config.min_tone_duration = float(engine_data["min_tone_duration"])
-            if "dropout_tolerance" in engine_data:
-                engine_config.dropout_tolerance = float(engine_data["dropout_tolerance"])
-            if "min_magnitude" in engine_data:
-                engine_config.min_magnitude = float(engine_data["min_magnitude"])
-
-            # Advanced DSP
-            if "min_sharpness" in engine_data:
-                engine_config.min_sharpness = float(engine_data["min_sharpness"])
-            if "noise_floor_factor" in engine_data:
-                engine_config.noise_floor_factor = float(engine_data["noise_floor_factor"])
-            if "max_peaks" in engine_data:
-                engine_config.max_peaks = int(engine_data["max_peaks"])
-            if "noise_learning_rate" in engine_data:
-                engine_config.noise_learning_rate = float(engine_data["noise_learning_rate"])
-
-            # Advanced Generation
-            if "frequency_tolerance" in engine_data:
-                engine_config.frequency_tolerance = float(engine_data["frequency_tolerance"])
-            if "freq_smoothing" in engine_data:
-                engine_config.freq_smoothing = float(engine_data["freq_smoothing"])
-            if "dip_threshold" in engine_data:
-                engine_config.dip_threshold = float(engine_data["dip_threshold"])
-            if "strong_signal_ratio" in engine_data:
-                engine_config.strong_signal_ratio = float(engine_data["strong_signal_ratio"])
-            if "coalesce_ratio" in engine_data:
-                engine_config.coalesce_ratio = float(engine_data["coalesce_ratio"])
-
-            # Advanced Matching
-            if "max_buffer_duration" in engine_data:
-                engine_config.max_buffer_duration = float(engine_data["max_buffer_duration"])
-            if "noise_skip_limit" in engine_data:
-                engine_config.noise_skip_limit = int(engine_data["noise_skip_limit"])
-            if "duration_relax_low" in engine_data:
-                engine_config.duration_relax_low = float(engine_data["duration_relax_low"])
-            if "duration_relax_high" in engine_data:
-                engine_config.duration_relax_high = float(engine_data["duration_relax_high"])
+            if not isinstance(engine_data, dict):
+                raise ConfigError(
+                    f"'engine' in {path} must be a mapping of settings, "
+                    f"got {type(engine_data).__name__}."
+                )
+            _apply_engine_overrides(engine_config, engine_data)
 
         # 6. Parse MQTT Settings
         mqtt_data = data.get("mqtt", {})
