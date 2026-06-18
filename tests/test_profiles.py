@@ -80,3 +80,22 @@ class TestSaveProfile:
         assert loaded.name == original.name
         assert loaded.confirmation_cycles == original.confirmation_cycles
         assert len(loaded.segments) == len(original.segments)
+
+    def test_resolution_survives_round_trip(self, tmp_path):
+        from acoustic_engine.models import ResolutionConfig
+
+        original = AlarmProfile(
+            name="FastBeep",
+            segments=[
+                Segment(type="tone", frequency=Range(3000, 3100), duration=Range(0.08, 0.15)),
+                Segment(type="silence", duration=Range(0.05, 0.15)),
+            ],
+            resolution=ResolutionConfig(min_tone_duration=0.03, dropout_tolerance=0.03),
+        )
+        yaml_file = tmp_path / "fast.yaml"
+        save_profile_to_yaml(original, yaml_file)
+
+        loaded = load_profile_from_yaml(yaml_file)
+        assert loaded.resolution is not None
+        assert loaded.resolution.min_tone_duration == 0.03
+        assert loaded.resolution.dropout_tolerance == 0.03

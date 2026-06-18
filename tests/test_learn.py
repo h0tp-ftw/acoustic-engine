@@ -78,6 +78,11 @@ def test_learn_fast_pattern_keeps_chirps_separate():
     profile = learn_profile_from_audio(audio, sr, name="T4")
     tones = [s for s in profile.segments if s.type == "tone"]
     assert len(tones) == 4, f"expected 4 chirps, got {len(tones)} (merged?)"
+    # A fast pattern should carry a high-res block so the saved profile is
+    # self-contained; a slow one (T3) should not need one.
+    assert profile.resolution is not None
+    slow, sr2 = _t3_audio()
+    assert learn_profile_from_audio(slow, sr2, name="T3").resolution is None
 
 
 def test_silence_raises_helpful_error():

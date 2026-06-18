@@ -241,65 +241,53 @@ def _parse_profile(data: dict) -> AlarmProfile:
     return profile
 
 
+def _profile_to_dict(profile: AlarmProfile) -> dict:
+    """Serialize an AlarmProfile to a plain dict matching the YAML schema.
+
+    Shared by the single- and multi-profile savers so they can't drift. Includes
+    the resolution block when set, so a save -> reload round-trip is lossless.
+    """
+    data: dict = {
+        "name": profile.name,
+        "confirmation_cycles": profile.confirmation_cycles,
+        "reset_timeout": profile.reset_timeout,
+    }
+    if profile.resolution:
+        data["resolution"] = {
+            "min_tone_duration": profile.resolution.min_tone_duration,
+            "dropout_tolerance": profile.resolution.dropout_tolerance,
+        }
+
+    segments = []
+    for seg in profile.segments:
+        seg_data: dict = {
+            "type": seg.type,
+            "duration": {"min": seg.duration.min, "max": seg.duration.max},
+        }
+        if seg.type == "tone" and seg.frequency:
+            seg_data["frequency"] = {"min": seg.frequency.min, "max": seg.frequency.max}
+            seg_data["min_magnitude"] = seg.min_magnitude
+        segments.append(seg_data)
+
+    data["segments"] = segments
+    return data
+
+
 def save_profile_to_yaml(profile: AlarmProfile, path: Union[str, Path]) -> None:
     """Save an AlarmProfile to a YAML file.
-
-    Serializes the profile object back to a YAML representation.
 
     Args:
         profile: The AlarmProfile object to save.
         path: Destination file path.
     """
-    data = {
-        "name": profile.name,
-        "confirmation_cycles": profile.confirmation_cycles,
-        "reset_timeout": profile.reset_timeout,
-        "segments": [],
-    }
-
-    for seg in profile.segments:
-        seg_data = {
-            "type": seg.type,
-            "duration": {"min": seg.duration.min, "max": seg.duration.max},
-        }
-
-        if seg.type == "tone" and seg.frequency:
-            seg_data["frequency"] = {"min": seg.frequency.min, "max": seg.frequency.max}
-            seg_data["min_magnitude"] = seg.min_magnitude
-
-        data["segments"].append(seg_data)
-
     with open(path, "w") as f:
-        yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+        yaml.dump(_profile_to_dict(profile), f, default_flow_style=False, sort_keys=False)
 
     logger.info(f"Saved profile '{profile.name}' to {path}")
 
 
 def save_profiles_to_yaml(profiles: List[AlarmProfile], path: Union[str, Path]) -> None:
-    """Save multiple AlarmProfiles to a YAML file (as a 'profiles' list)."""
-    data_list = []
-
-    for profile in profiles:
-        p_data = {
-            "name": profile.name,
-            "confirmation_cycles": profile.confirmation_cycles,
-            "reset_timeout": profile.reset_timeout,
-            "segments": [],
-        }
-
-        for seg in profile.segments:
-            seg_data = {
-                "type": seg.type,
-                "duration": {"min": seg.duration.min, "max": seg.duration.max},
-            }
-
-            if seg.type == "tone" and seg.frequency:
-                seg_data["frequency"] = {"min": seg.frequency.min, "max": seg.frequency.max}
-                # seg_data["min_magnitude"] = seg.min_magnitude # Optional
-
-            p_data["segments"].append(seg_data)
-        data_list.append(p_data)
-
-    # Save as list of profiles
+    """Save multiple AlarmProfiles to a YAML file (as a list of profiles)."""
+    data_list = [_profile_to_dict(profile) for profile in profiles]
     with open(path, "w") as f:
         yaml.dump(data_list, f, default_flow_style=False, sort_keys=False)

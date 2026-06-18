@@ -15,7 +15,7 @@ tolerances. The result is a starting point — verify and tweak it with
 import logging
 import wave
 from pathlib import Path
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -23,7 +23,7 @@ from .analysis.generator import EventGenerator
 from .config import DEFAULT_CHUNK_SIZE
 from .errors import AcousticEngineError
 from .events import ToneEvent
-from .models import AlarmProfile, Range, Segment
+from .models import AlarmProfile, Range, ResolutionConfig, Segment
 from .processing.dsp import SpectralMonitor
 
 logger = logging.getLogger(__name__)
@@ -225,6 +225,24 @@ def infer_segments(events: List[ToneEvent]) -> List[Segment]:
     return segments
 
 
+def _resolution_for(segments: List[Segment]) -> Optional[ResolutionConfig]:
+    """Attach a high-res block only when the pattern has fast features.
+
+    The engine's default resolution would blur sub-~100ms tones/gaps, so for
+    fast patterns (e.g. a CO T4) we size min_tone_duration and dropout_tolerance
+    to the shortest feature, making the saved profile self-contained.
+    """
+    tone_mins = [s.duration.min for s in segments if s.type == "tone"]
+    gap_mins = [s.duration.min for s in segments if s.type == "silence"]
+    finest = min(tone_mins + gap_mins) if (tone_mins or gap_mins) else 1.0
+    if finest >= 0.12:
+        return None
+    return ResolutionConfig(
+        min_tone_duration=max(0.02, round(min(tone_mins) * 0.5, 3)) if tone_mins else 0.03,
+        dropout_tolerance=max(0.02, round(min(gap_mins) * 0.4, 3)) if gap_mins else 0.03,
+    )
+
+
 def learn_profile_from_audio(
     audio: np.ndarray, sample_rate: int, name: str = "Learned Alarm"
 ) -> AlarmProfile:
@@ -237,9 +255,12 @@ def learn_profile_from_audio(
     tones = sum(1 for s in segments if s.type == "tone")
     logger.info("Inferred a %d-tone cycle", tones)
 
-    # validate_profile runs inside AlarmProfile construction paths used by the
-    # loaders; build directly here and rely on the engine to validate on load.
-    return AlarmProfile(name=name, segments=segments, confirmation_cycles=2)
+    return AlarmProfile(
+        name=name,
+        segments=segments,
+        confirmation_cycles=2,
+        resolution=_resolution_for(segments),
+    )
 
 
 def learn_profile_from_file(path: Union[str, Path], name: str = None) -> AlarmProfile:

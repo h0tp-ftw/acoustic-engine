@@ -8,9 +8,7 @@ through TestRunner to verify end-to-end detection.
 import io
 import math
 import struct
-import tempfile
 import wave
-from pathlib import Path
 
 import pytest
 

@@ -2,7 +2,7 @@
 
 import pytest
 
-from acoustic_engine.config import GlobalConfig, MQTTConfig
+from acoustic_engine.config import GlobalConfig
 from acoustic_engine.errors import ConfigError
 
 _PROFILE_A = """
