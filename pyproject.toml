@@ -59,6 +59,7 @@ Repository = "https://github.com/h0tp-ftw/acoustic-engine"
 Issues = "https://github.com/h0tp-ftw/acoustic-engine/issues"
 
 [project.scripts]
+acoustic-engine = "acoustic_engine.cli:main"
 alarm-tuner = "acoustic_engine.tuner.validate:main"
 
 [tool.setuptools.packages.find]
@@ -66,6 +67,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "acoustic_engine" = ["*.yaml"]
+"acoustic_engine.presets" = ["*.yaml"]
 
 [tool.black]
 line-length = 100

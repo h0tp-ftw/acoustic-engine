@@ -1,0 +1,27 @@
+# Built-in preset: Standard residential smoke alarm.
+#
+# Temporal-Three (T3) evacuation pattern per ISO 8201 / NFPA 72:
+#   beep - beep - beep - (long pause) - repeat
+# Most residential smoke alarms sound at ~3.0-3.4 kHz. Two confirmation
+# cycles keep false positives low without delaying a real alarm noticeably.
+#
+# Use as-is:   acoustic-engine run --preset smoke_t3
+name: "Smoke Alarm (T3)"
+confirmation_cycles: 2
+reset_timeout: 10.0
+segments:
+  - type: "tone"
+    frequency: { min: 3000, max: 3400 }
+    duration: { min: 0.4, max: 0.7 }
+  - type: "silence"
+    duration: { min: 0.3, max: 0.7 }
+  - type: "tone"
+    frequency: { min: 3000, max: 3400 }
+    duration: { min: 0.4, max: 0.7 }
+  - type: "silence"
+    duration: { min: 0.3, max: 0.7 }
+  - type: "tone"
+    frequency: { min: 3000, max: 3400 }
+    duration: { min: 0.4, max: 0.7 }
+  - type: "silence"
+    duration: { min: 1.0, max: 1.8 }

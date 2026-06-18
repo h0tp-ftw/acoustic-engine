@@ -1,0 +1,36 @@
+# Built-in preset: Standard carbon monoxide (CO) alarm.
+#
+# Temporal-Four (T4) pattern per ISO 8201 / UL 2034:
+#   beep beep beep beep - (long pause) - repeat
+# Four short chirps (~0.1s) close together, then a multi-second gap. CO
+# alarms typically sound at ~3.0-3.4 kHz. The high-resolution block keeps
+# the short chirps and tiny gaps from being merged into one tone.
+#
+# Use as-is:   acoustic-engine run --preset co_t4
+name: "CO Alarm (T4)"
+confirmation_cycles: 2
+reset_timeout: 10.0
+resolution:
+  min_tone_duration: 0.05
+  dropout_tolerance: 0.05
+segments:
+  - type: "tone"
+    frequency: { min: 3000, max: 3400 }
+    duration: { min: 0.08, max: 0.2 }
+  - type: "silence"
+    duration: { min: 0.05, max: 0.2 }
+  - type: "tone"
+    frequency: { min: 3000, max: 3400 }
+    duration: { min: 0.08, max: 0.2 }
+  - type: "silence"
+    duration: { min: 0.05, max: 0.2 }
+  - type: "tone"
+    frequency: { min: 3000, max: 3400 }
+    duration: { min: 0.08, max: 0.2 }
+  - type: "silence"
+    duration: { min: 0.05, max: 0.2 }
+  - type: "tone"
+    frequency: { min: 3000, max: 3400 }
+    duration: { min: 0.08, max: 0.2 }
+  - type: "silence"
+    duration: { min: 3.0, max: 6.0 }
