@@ -162,8 +162,10 @@ class ParallelEngine:
         # Initialize logging
         logging.getLogger().setLevel(config.system.log_level)
 
+        # Each profile becomes its own pipeline; ParallelEngine generates a
+        # bespoke EngineConfig per profile, so config.engine is intentionally
+        # not forwarded here.
         return cls(
-            profiles=config.profiles,
+            pipelines=config.profiles,
             audio_config=config.audio,
-            # Config.engine is ignored here as we generate per-profile configs
         )

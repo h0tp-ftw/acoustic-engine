@@ -67,6 +67,11 @@ class Engine:
         self.on_detection = on_detection
         self.on_match = on_match
 
+        # Per-profile re-arm cooldown: after a detection fires, suppress further
+        # detections for this many seconds. Driven by each profile's
+        # reset_timeout (previously a hardcoded 10s that ignored the profile).
+        self._cooldowns = {p.name: p.reset_timeout for p in profiles}
+
         # Use provided engine config or compute optimal settings from profiles
         if engine_config:
             self.engine_config = engine_config
@@ -223,9 +228,11 @@ class Engine:
                 except Exception as e:
                     logger.error(f"Error in on_match callback: {e}")
 
-            # Auto-reset after timeout to allow new detections
+            # Auto-reset after the matched profile's reset_timeout to re-arm
+            cooldown = self._cooldowns.get(match.profile_name, 10.0)
+
             def clear():
-                time.sleep(10)  # Hardcoded cooldown for now
+                time.sleep(cooldown)
                 if self._alarm_active:
                     logger.info("Auto-clearing alarm state.")
                     self._alarm_active = False

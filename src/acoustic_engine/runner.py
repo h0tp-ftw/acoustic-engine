@@ -1,4 +1,7 @@
 import argparse
+import copy
+import datetime
+import json
 import logging
 import os
 import sys
@@ -87,21 +90,10 @@ def main():
     for i, cfg in enumerate(configs):
         original_source = config_paths[i]
 
-        # Determine effective engine config for this file
-        # This preserves the user's specific tuning (sensitivity, thresholds)
-        # BUT overrides the audio geometry to match the Global Context.
-
-        # We need to apply the global sample rate/chunk size to the engine config
-        # However, simply overwriting them might invalidate calculated fields (like min_sharpness or tolerances?)
-        # Actually, EngineConfig fields are mostly independent, EXCEPT frequency_tolerance might need scaling if chunk size changed drastically.
-        # But generally, higher sample rate is safer.
-
-        # If the config had specific engine settings (loaded from YAML), we use them.
-        # But we must update sample_rate and chunk_size.
-
+        # Keep each file's tuned engine settings, but align its audio geometry
+        # (sample_rate, chunk_size) to the shared global context chosen above.
         base_engine_config = cfg.engine
 
-        # Check if we are forcing a change
         if base_engine_config.sample_rate != best_audio_config.sample_rate:
             logger.warning(
                 f"[{original_source}] Overriding sample_rate {base_engine_config.sample_rate} -> {best_audio_config.sample_rate}"
@@ -114,25 +106,10 @@ def main():
             )
             base_engine_config.chunk_size = best_audio_config.chunk_size
 
-        # Now creating pipelines for each profile in this config
+        # One pipeline per profile; each gets its own copy of the file's engine
+        # config so later per-pipeline tweaks can't bleed across profiles.
         for profile in cfg.profiles:
-            # We clone the base engine config for each profile
-            # This ensures they share the file's "Engine" settings (like sensitivity)
-            # but we could also allow per-profile optimization if we wanted.
-            # For this "Runner" architecture, the YAML defines the engine.
-
-            # Use dataclass replace or manual copy if needed, but EngineConfig is mutable dataclass.
-            # We'll use a new instance to be safe if we modify it later.
-            import copy
-
             final_config = copy.copy(base_engine_config)
-
-            # Recalculate resolution-dependent fields?
-            # Ideally the user provided specific tuning.
-            # If they didn't (defaults), we should perhaps re-run calculation?
-            # But the user asked for "Separate Runners" where they define the config.
-            # So we trust the loaded `cfg.engine` values, just patching audio.
-
             pipelines.append((profile, final_config))
             logger.info(
                 f"  + Added Pipeline: {profile.name} (Sensitivity: {final_config.min_magnitude})"
@@ -148,8 +125,6 @@ def main():
     mqtt_client = None
     if mqtt_config:
         try:
-            import json
-            import datetime
             import paho.mqtt.client as mqtt
 
             # Setup MQTT client (compatible with paho-mqtt v1 and v2)
@@ -176,9 +151,6 @@ def main():
         logger.info(f"🚨 DETECTED: {name}")
         if mqtt_client:
             try:
-                import json
-                import datetime
-
                 payload = json.dumps(
                     {
                         "event": "detected",
@@ -194,9 +166,6 @@ def main():
         logger.info(f"match details: {match.profile_name} cycle={match.cycle_count}")
         if mqtt_client:
             try:
-                import json
-                import datetime
-
                 payload = json.dumps(
                     {
                         "event": "matched",

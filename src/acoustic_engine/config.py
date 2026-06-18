@@ -81,6 +81,17 @@ def _apply_engine_overrides(engine_config: "EngineConfig", engine_data: dict) ->
             raise ConfigError(f"engine.{key} must be a number, got {value!r}.") from None
         setattr(engine_config, key, cast)
 
+# Audio capture defaults. Kept as named constants so every entry point
+# (AudioSettings, EngineConfig, GlobalConfig.load, from_profiles, the tester)
+# agrees — previously these drifted (1024 vs 4096) so the same profiles
+# detected differently depending on whether you went through Engine() or
+# from_yaml(). 1024 (~23ms) is the default: fine temporal resolution so a
+# single chunk doesn't outlast min_tone_duration and register transients as
+# tones. Raise to 4096 to cut CPU on constrained hardware.
+DEFAULT_SAMPLE_RATE = 44100  # Hz
+DEFAULT_CHUNK_SIZE = 1024  # samples (~23ms @ 44.1kHz); fine temporal resolution
+HIGHRES_CHUNK_SIZE = 2048  # cap applied to a larger base when a profile needs fast events
+
 # Default resolution values
 DEFAULT_MIN_TONE_DURATION = 0.04  # seconds (requires ~2 chunks to confirm)
 DEFAULT_DROPOUT_TOLERANCE = 0.03  # seconds (tolerates 1 missing chunk)
@@ -155,8 +166,8 @@ class AudioSettings:
         channels: Number of audio channels (usually 1 for mono).
     """
 
-    sample_rate: int = 44100
-    chunk_size: int = 1024  # High-res default
+    sample_rate: int = DEFAULT_SAMPLE_RATE
+    chunk_size: int = DEFAULT_CHUNK_SIZE
     device_index: Optional[int] = None
     channels: int = 1
 
@@ -193,8 +204,8 @@ class EngineConfig:
         duration_relax_high: Multiplier for maximum segment duration (default 1.5).
     """
 
-    sample_rate: int = 44100
-    chunk_size: int = 1024
+    sample_rate: int = DEFAULT_SAMPLE_RATE
+    chunk_size: int = DEFAULT_CHUNK_SIZE
     min_tone_duration: float = DEFAULT_MIN_TONE_DURATION
     dropout_tolerance: float = DEFAULT_DROPOUT_TOLERANCE
     min_magnitude: float = DEFAULT_MIN_MAGNITUDE  # Threshold for peak detection
@@ -222,8 +233,8 @@ class EngineConfig:
     def from_profiles(
         cls,
         profiles: List[AlarmProfile],
-        sample_rate: int = 44100,
-        chunk_size: int = 4096,
+        sample_rate: int = DEFAULT_SAMPLE_RATE,
+        chunk_size: int = DEFAULT_CHUNK_SIZE,
     ) -> "EngineConfig":
         """Create an EngineConfig with resolution computed from profiles.
 
@@ -242,7 +253,7 @@ class EngineConfig:
 
         # If any profile needs high-res, reduce chunk size for better temporal resolution
         if min_tone < DEFAULT_MIN_TONE_DURATION or dropout < DEFAULT_DROPOUT_TOLERANCE:
-            chunk_size = min(chunk_size, 2048)  # Cap at 2048 for high-res
+            chunk_size = min(chunk_size, HIGHRES_CHUNK_SIZE)  # finer temporal resolution
 
         return cls(
             sample_rate=sample_rate,
@@ -428,8 +439,8 @@ class GlobalConfig:
         # 2. Parse Audio Settings
         audio_data = data.get("audio", {})
         audio_config = AudioSettings(
-            sample_rate=audio_data.get("sample_rate", 44100),
-            chunk_size=audio_data.get("chunk_size", 4096),
+            sample_rate=audio_data.get("sample_rate", DEFAULT_SAMPLE_RATE),
+            chunk_size=audio_data.get("chunk_size", DEFAULT_CHUNK_SIZE),
             device_index=audio_data.get("device_index"),
             channels=audio_data.get("channels", 1),
         )
