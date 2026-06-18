@@ -1,0 +1,49 @@
+name: Release to PyPI
+
+# Publishes to PyPI when you publish a GitHub Release (e.g. for tag v1.1.0).
+# Build and publish are split so the publish job has only the minimal OIDC
+# permission, not the build environment that runs project code.
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade build twine
+          python -m build
+          twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/acoustic-engine/
+    permissions:
+      id-token: write   # Trusted Publishing (OIDC) — no API token required
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # Default: Trusted Publishing — nothing else needed here.
+        #
+        # To use an API token stored in GitHub Secrets instead, delete the
+        # `permissions:` block above and uncomment:
+        # with:
+        #   password: ${{ secrets.PYPI_API_TOKEN }}
