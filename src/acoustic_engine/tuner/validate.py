@@ -242,11 +242,20 @@ async def health():
 
 
 def main():
-    import uvicorn
+    # Parse args first so `--help` works even if the server deps are missing.
     parser = argparse.ArgumentParser(description="Acoustic Engine Validation API")
     parser.add_argument("-p", "--port", type=int, default=8787)
     parser.add_argument("--host", default="127.0.0.1")
     args = parser.parse_args()
+
+    try:
+        import uvicorn
+    except ImportError:
+        raise SystemExit(
+            "The validation server needs the 'tuner' extra. Install it with:\n"
+            "  pip install 'acoustic-engine[tuner]'"
+        ) from None
+
     print(f"Validation API starting on http://{args.host}:{args.port}")
     print("  POST /validate  — upload audio + profile YAML")
     print("  GET  /health    — health check")

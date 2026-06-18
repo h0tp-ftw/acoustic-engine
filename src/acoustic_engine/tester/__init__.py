@@ -116,21 +116,24 @@ def cli():
         description="Test alarm profiles with the actual detection engine",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-  # Test a profile with an audio file
-  python -m acoustic_engine.tester --profile profiles/smoke_alarm.yaml --audio sample.wav
+Examples (also available as `acoustic-engine test ...`):
+  # Test a profile against an audio file
+  acoustic-engine test --profile profiles/smoke_alarm.yaml --audio sample.wav
 
-  # Continuous live mode (runs forever until Ctrl+C)
-  python -m acoustic_engine.tester --profile profiles/smoke_alarm.yaml --live
+  # Test a built-in preset against an audio file
+  acoustic-engine test --preset smoke_t3 --audio sample.wav
 
-  # Live microphone test with time limit
-  python -m acoustic_engine.tester --profile profiles/ --live --duration 60
+  # Continuous live mode (runs until Ctrl+C)
+  acoustic-engine test --profile profiles/smoke_alarm.yaml --live
 
-  # Test with noise mixing
-  python -m acoustic_engine.tester --profile profiles/co_detector.yaml --audio sample.wav --noise 0.3 --noise-type white
+  # Live microphone test with a time limit
+  acoustic-engine test --profile profiles/ --live --duration 60
+
+  # Mix in noise to check robustness
+  acoustic-engine test --profile profiles/co_detector.yaml --audio sample.wav --noise 0.3
 
   # Verbose mode for debugging
-  python -m acoustic_engine.tester --profile profiles/smoke_alarm.yaml --audio sample.wav -v
+  acoustic-engine test --profile profiles/smoke_alarm.yaml --audio sample.wav -v
         """,
     )
 

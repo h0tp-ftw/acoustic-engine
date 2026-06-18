@@ -163,8 +163,22 @@ def cmd_test(rest: List[str]) -> int:
 
 
 def cmd_serve(rest: List[str]) -> int:
-    """Forward to the validation API server."""
-    from .tuner.validate import main as serve_main
+    """Forward to the validation API server (needs the 'tuner' extra)."""
+    if rest and rest[0] in ("-h", "--help"):
+        print(
+            "usage: acoustic-engine serve [--port PORT] [--host HOST]\n\n"
+            "Run the validation API used by the browser tuner.\n"
+            "Requires the 'tuner' extra:  pip install 'acoustic-engine[tuner]'"
+        )
+        return 0
+    try:
+        from .tuner.validate import main as serve_main
+    except ImportError:
+        logger.error(
+            "The validation server needs the 'tuner' extra. "
+            "Install it with: pip install 'acoustic-engine[tuner]'"
+        )
+        return 1
 
     sys.argv = ["acoustic-engine serve", *rest]
     serve_main()
