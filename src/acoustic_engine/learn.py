@@ -34,6 +34,12 @@ _INTERCYCLE_RATIO = 2.0
 # Drop tone events quieter than this fraction of the loudest tone (harmonics,
 # noise) before inferring the pattern.
 _MAGNITUDE_KEEP = 0.35
+# Extraction resolution. Deliberately finer than the engine defaults
+# (0.1s / 0.15s) so fast patterns like a CO T4 (0.1s chirps with 0.1s gaps)
+# are not merged into one tone. Small enough to keep the chirps separate, large
+# enough to bridge tiny intra-tone dips in a clean recording.
+_LEARN_MIN_TONE = 0.03
+_LEARN_DROPOUT = 0.05
 
 
 def _load_wav_int16_mono(path: Union[str, Path]) -> Tuple[np.ndarray, int]:
@@ -81,7 +87,12 @@ def extract_tone_events(
     tone is captured. Mirrors the loop the tuner's validation API uses.
     """
     dsp = SpectralMonitor(sample_rate, chunk_size)
-    generator = EventGenerator(sample_rate, chunk_size)
+    generator = EventGenerator(
+        sample_rate,
+        chunk_size,
+        min_tone_duration=_LEARN_MIN_TONE,
+        dropout_tolerance=_LEARN_DROPOUT,
+    )
 
     events: List[ToneEvent] = []
     for i in range(0, len(audio) - chunk_size, chunk_size):

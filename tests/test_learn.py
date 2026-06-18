@@ -51,6 +51,35 @@ def test_learned_profile_detects_its_own_recording():
     assert detected, "learned profile failed to detect its own recording"
 
 
+def _t4_audio(sample_rate=44100, freq=3200.0, cycles=4):
+    """Synthetic Temporal-Four (CO) alarm: 4 fast chirps (0.1s on/off), 4s gap.
+
+    Exercises the high-resolution path: at the engine's default dropout
+    tolerance these chirps would merge into one tone.
+    """
+
+    def beep(dur):
+        n = int(dur * sample_rate)
+        t = np.arange(n) / sample_rate
+        env = np.clip(np.minimum(t / 0.005, (dur - t) / 0.005), 0, 1)
+        return (0.7 * 32767 * env * np.sin(2 * math.pi * freq * t)).astype(np.int16)
+
+    def sil(dur):
+        return np.zeros(int(dur * sample_rate), dtype=np.int16)
+
+    one = np.concatenate(
+        [beep(0.1), sil(0.1), beep(0.1), sil(0.1), beep(0.1), sil(0.1), beep(0.1), sil(4.0)]
+    )
+    return np.concatenate([one] * cycles), sample_rate
+
+
+def test_learn_fast_pattern_keeps_chirps_separate():
+    audio, sr = _t4_audio()
+    profile = learn_profile_from_audio(audio, sr, name="T4")
+    tones = [s for s in profile.segments if s.type == "tone"]
+    assert len(tones) == 4, f"expected 4 chirps, got {len(tones)} (merged?)"
+
+
 def test_silence_raises_helpful_error():
     silence = np.zeros(44100 * 2, dtype=np.int16)
     with pytest.raises(AcousticEngineError, match="No tones"):
