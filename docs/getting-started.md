@@ -14,6 +14,10 @@ By the end you'll have:
 ## Install
 
 ```bash
+# Latest (includes the CLI, presets, and `learn` — recommended for now)
+pip install "git+https://github.com/h0tp-ftw/acoustic-engine.git"
+
+# Or the stable PyPI release (needs 1.1+ for the commands in this guide)
 pip install acoustic-engine
 ```
 

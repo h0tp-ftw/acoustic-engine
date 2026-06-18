@@ -31,14 +31,19 @@ A high-performance, noise-resilient DSP library designed to detect specific acou
 ### Installation
 
 ```bash
-# From a clone (PyAudio needs portaudio: `apt install portaudio19-dev` on Debian/Ubuntu)
+# Quickest — install the latest directly (PyAudio needs PortAudio:
+# `apt install portaudio19-dev` on Debian/Ubuntu, `brew install portaudio` on macOS)
+pip install "git+https://github.com/h0tp-ftw/acoustic-engine.git"
+
+# Or clone for development, with optional extras
+#   mqtt = publish detections, tuner = browser app API, dev = tests
 git clone https://github.com/h0tp-ftw/acoustic-engine.git
 cd acoustic-engine
-pip install -e .
-
-# Optional extras: mqtt (publish detections), tuner (browser app API), dev (tests)
 pip install -e ".[mqtt,tuner,dev]"
 ```
+
+> The stable PyPI release (`pip install acoustic-engine`) needs **1.1+** for the
+> CLI, presets, and `learn`.
 
 ### Quick Start (CLI)
 

@@ -12,8 +12,8 @@ Usage:
     engine.start()
 """
 
-__version__ = "1.0.0"
-__author__ = "Your Name"
+__version__ = "1.1.0"
+__author__ = "h0tp"
 
 # Core exports
 from .analysis.event_buffer import EventBuffer
