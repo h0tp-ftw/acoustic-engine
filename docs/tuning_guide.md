@@ -2,6 +2,11 @@
 
 This guide explains how to tune the `EngineConfig` and `AlarmProfile` parameters to optimize detection for your specific environment.
 
+> **Most people never need this page.** Try the easy levers first — re-record and
+> `acoustic-engine learn` again, or widen the frequency/duration ranges and adjust
+> `confirmation_cycles` in your profile. The [Profiles & Troubleshooting](profiles.md)
+> guide walks through those. Come here only when the easy fixes aren't enough.
+
 ## ⚙️ Engine Configuration (`EngineConfig`)
 
 These global settings control how the engine processes audio _before_ looking for specific patterns. They control sensitivity, noise rejection, and spectral resolution.

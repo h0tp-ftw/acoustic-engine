@@ -11,12 +11,18 @@ A high-performance, noise-resilient DSP library designed to detect specific acou
 > [!TIP]
 > **Why this engine?** Unlike heavy Neural Networks, the Acoustic Engine uses deterministic Digital Signal Processing (DSP) to achieve high accuracy with low CPU usage. Best for battery-powered or resource-constrained IoT devices.
 
+> [!NOTE]
+> **New here? → [Getting Started](docs/getting-started.md)** takes you from install
+> to a working detector in about ten minutes, no signal-processing knowledge needed.
+
 ## Features
 
-- **Noise Resilient**: Event analysis that ignores background interference (-15dB SNR).
-- **Efficient**: Real-time FFT with <5% CPU usage on Raspberry Pi.
-- **Easy Config**: Simple YAML profiles for alarm definitions.
-- **Grandmaster Robustness**: Advanced Reverb/Echo rejection and Frequency Drift tracking.
+- **Zero-config presets**: ship-ready profiles for standardized smoke (T3) and CO (T4) alarms — `acoustic-engine run --preset smoke_t3`.
+- **Learn from a recording**: `acoustic-engine learn alarm.wav` turns a clip of *your* alarm into a working profile automatically — no DSP knowledge required.
+- **One CLI**: `run`, `learn`, `test`, `profiles`, `serve` — [reference](docs/cli.md).
+- **Noise Resilient**: event analysis that ignores background interference (down to ~-15 dB SNR).
+- **Efficient**: real-time FFT with low CPU usage — runs comfortably on a Raspberry Pi.
+- **Easy config**: simple YAML profiles, validated on load with clear error messages.
 
 ---
 
@@ -68,6 +74,19 @@ for systemd and Docker details.
 docker compose up engine          # run detection
 docker compose run --rm engine acoustic-engine run --preset smoke_t3
 ```
+
+---
+
+## Documentation
+
+| Guide | What's in it |
+| :-- | :-- |
+| **[Getting Started](docs/getting-started.md)** | Install → detect → learn your own alarm → deploy. Start here. |
+| [CLI Reference](docs/cli.md) | Every command and option. |
+| [Profiles & Troubleshooting](docs/profiles.md) | How profiles work, and fixes for "won't detect" / "false alarms". |
+| [Deployment](deploy/README.md) | systemd, Docker, hardware tips. |
+| [Tuning Guide](docs/tuning_guide.md) | The advanced engine knobs (rarely needed). |
+| [Architecture](ARCHITECTURE.md) | How the pipeline works inside. |
 
 ---
 

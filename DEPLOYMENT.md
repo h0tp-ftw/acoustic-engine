@@ -2,6 +2,10 @@
 
 This guide covers advanced deployment strategies, configuration details, and API integration for the Acoustic Engine.
 
+> **Just want to get running?** See [Getting Started](docs/getting-started.md) for
+> the quick path and [deploy/README.md](deploy/README.md) for a ready-to-use
+> systemd unit and Docker setup. This document is the deeper reference.
+
 ---
 
 ## 1. Deployment Modes
@@ -47,8 +51,8 @@ runner.start()
 
 **Best for:** Very fast beeps (<50ms) or rapid-fire patterns (medical monitors, data chirps).
 
-- **Mechanism**: Forces smaller FFT/buffer size (1024 samples vs 4096).
-- **Trade-off**: Slightly higher CPU usage but achieves ~23ms temporal resolution.
+- **Mechanism**: The default chunk size is already 1024 samples (~23ms). A profile that needs even finer timing adds a `resolution` block; a larger configured chunk size is auto-capped at 2048 for such profiles. `acoustic-engine learn` adds the `resolution` block automatically for fast patterns.
+- **Trade-off**: Smaller chunks cost slightly more CPU but resolve short tones and gaps that would otherwise merge.
 
 ```yaml
 engine:
@@ -158,16 +162,19 @@ Automatically creates optimized `EngineConfig` for each profile (e.g., one High-
 
 ## 4. CLI Tools
 
+All tools live behind the `acoustic-engine` command (see the [CLI reference](docs/cli.md)).
+The `python -m acoustic_engine.<module>` forms still work if you prefer them.
+
 ### Production Runner
 
 Run detection with one or more configuration files:
 
 ```bash
-python -m acoustic_engine.runner --config configs/smoke_alarm.yaml
-python -m acoustic_engine.runner --config configs/smoke_alarm.yaml --config configs/co_sensor.yaml
+acoustic-engine run --config configs/smoke_alarm.yaml
+acoustic-engine run --config configs/smoke_alarm.yaml --config configs/co_sensor.yaml
 ```
 
-Smart negotiation selects the highest audio quality across configs. Total isolation between runners.
+Smart negotiation selects the highest audio quality across configs. Total isolation between runners. With no `--config`, `run` falls back to `$ACOUSTIC_CONFIG` then `./config.yaml`.
 
 ### Profile Tester
 
@@ -175,36 +182,27 @@ Test profiles against audio files or live input:
 
 ```bash
 # Test against a file
-python -m acoustic_engine.tester \
-  --profile profiles/smoke_alarm.yaml \
-  --audio recording.wav \
-  -v
+acoustic-engine test --profile profiles/smoke_alarm.yaml --audio recording.wav -v
+
+# Test a built-in preset
+acoustic-engine test --preset smoke_t3 --audio recording.wav
 
 # Live microphone testing
-python -m acoustic_engine.tester \
-  --profile profiles/ \
-  --live \
-  --duration 60
+acoustic-engine test --profile profiles/ --live --duration 60
 
 # With noise injection for robustness testing
-python -m acoustic_engine.tester \
-  --profile profiles/smoke_alarm.yaml \
-  --audio recording.wav \
-  --noise 0.3 --noise-type white
+acoustic-engine test --profile profiles/smoke_alarm.yaml --audio recording.wav --noise 0.3 --noise-type white
 
 # High-resolution mode for fast patterns
-python -m acoustic_engine.tester \
-  --profile profiles/co_sensor.yaml \
-  --audio recording.wav \
-  --high-res -v
+acoustic-engine test --profile profiles/co_sensor.yaml --audio recording.wav --high-res -v
 ```
 
 ### Validation API
 
-HTTP endpoint for the browser-based tuner. Runs the real engine pipeline on uploaded audio + YAML:
+HTTP endpoint for the browser-based tuner. Runs the real engine pipeline on uploaded audio + YAML (needs the `tuner` extra):
 
 ```bash
-python -m acoustic_engine.tuner.validate --port 8787
+acoustic-engine serve --port 8787
 ```
 
 POST `/validate` with `audio` (file) and `profile_yaml` (form field). Returns JSON with tone events, detections, and pipeline parameters.

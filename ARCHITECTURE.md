@@ -168,7 +168,7 @@ Converts continuous data into discrete events and looks for patterns.
 Interactive CLI for testing profiles against audio files or live microphone input. Includes noise injection for robustness testing.
 
 ```bash
-python -m acoustic_engine.tester --profile profiles/smoke_alarm.yaml --audio recording.wav -v
+acoustic-engine test --profile profiles/smoke_alarm.yaml --audio recording.wav -v
 ```
 
 ### Profile Tuner (`tuner/`)
@@ -183,7 +183,7 @@ Two implementations:
 cd tuner && npm run dev
 
 # Validation API
-python -m acoustic_engine.tuner.validate --port 8787
+acoustic-engine serve --port 8787
 ```
 
 ---
