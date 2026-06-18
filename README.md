@@ -92,6 +92,7 @@ docker compose run --rm engine acoustic-engine run --preset smoke_t3
 | [Deployment](deploy/README.md) | systemd, Docker, hardware tips. |
 | [Tuning Guide](docs/tuning_guide.md) | The advanced engine knobs (rarely needed). |
 | [Architecture](ARCHITECTURE.md) | How the pipeline works inside. |
+| [Changelog](CHANGELOG.md) | What's new in each release. |
 
 ---
 
