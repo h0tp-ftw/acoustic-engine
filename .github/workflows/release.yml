@@ -42,11 +42,11 @@ jobs:
       tag: ${{ steps.prep.outputs.tag }}
       release: ${{ steps.prep.outputs.release }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # full history + tags, so the "already released?" check works
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -111,7 +111,7 @@ jobs:
           python -m build
           twine check dist/*
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: steps.prep.outputs.release == 'true'
         with:
           name: dist
@@ -124,14 +124,14 @@ jobs:
     permissions:
       contents: write # to create the Release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ needs.build.outputs.tag }}
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           name: dist
           path: dist/
@@ -156,7 +156,7 @@ jobs:
     permissions:
       id-token: write # Trusted Publishing (OIDC) — no API token required
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           name: dist
           path: dist/
