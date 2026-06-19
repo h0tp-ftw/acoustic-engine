@@ -22,7 +22,6 @@ from .models import (
     HIGHRES_DROPOUT_TOLERANCE,
     HIGHRES_MIN_TONE_DURATION,
     AlarmProfile,
-    ResolutionConfig,
 )
 from .profiles import _parse_profile, load_profiles_from_yaml
 
@@ -129,22 +128,6 @@ def compute_finest_resolution(profiles: List[AlarmProfile]) -> Tuple[float, floa
             finest_dropout = min(finest_dropout, profile.resolution.dropout_tolerance)
 
     return finest_min_tone, finest_dropout
-
-
-def get_resolution_for_profile(profile: AlarmProfile) -> ResolutionConfig:
-    """Get the effective resolution config for a profile.
-
-    Returns the profile's resolution if set, otherwise returns defaults.
-
-    Args:
-        profile: The AlarmProfile to get resolution for.
-
-    Returns:
-        ResolutionConfig object with the effective settings.
-    """
-    if profile.resolution:
-        return profile.resolution
-    return ResolutionConfig.standard()
 
 
 @dataclass
