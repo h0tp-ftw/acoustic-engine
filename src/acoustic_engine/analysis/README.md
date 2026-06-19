@@ -17,7 +17,7 @@ Tracks the persistence and continuity of frequencies over time.
 
 The primary detection engine that replaces traditional state machines.
 
-- **Non-Linear Matching**: Instead of waiting for beeps in a strict order, it look at a "window" of time. This allows it to detect patterns even if the audio starts mid-pattern or contains impulsive noise (like a door slamming) between beeps.
+- **Non-Linear Matching**: Instead of waiting for beeps in a strict order, it looks at a "window" of time. This allows it to detect patterns even if the audio starts mid-pattern or contains impulsive noise (like a door slamming) between beeps.
 - **Scoring System**: Evaluates potential matches based on how many cycles are completed and how well they fit the profile's timing constraints.
 - **Robustness**: Can "skip" over intermittent noise that doesn't fit the expected rhythm.
 
@@ -33,26 +33,25 @@ A circular time-indexed storage for events.
 ```python
 from acoustic_engine.analysis.generator import EventGenerator
 from acoustic_engine.analysis.windowed_matcher import WindowedMatcher
-from acoustic_engine.config import EngineConfig
 
-# Analysis requires an EngineConfig (for timing tolerances)
-config = EngineConfig(min_tone_duration=0.05, dropout_tolerance=0.05)
+# 1. Generator turns peaks into ToneEvents. Timing tolerances are constructor args.
+generator = EventGenerator(
+    sample_rate=44100,
+    chunk_size=1024,
+    min_tone_duration=0.05,
+    dropout_tolerance=0.05,
+)
 
-# 1. Setup Generator
-generator = EventGenerator(config)
-
-# 2. Setup Matcher with a profile
+# 2. Matcher scores ToneEvents against one or more profiles.
 matcher = WindowedMatcher(profiles=[my_profile])
 
-# In the processing loop:
-tones = generator.update(relevant_peaks) # Returns list of completed ToneEvents
+# In the processing loop, with `timestamp` advancing each chunk:
+tones = generator.process(relevant_peaks, timestamp)  # -> List[ToneEvent]
 for tone in tones:
-    # Add to matchers
     matcher.add_event(tone)
 
-# Check for matches every ~0.5s
-matches = matcher.evaluate()
-for match in matches:
+# Evaluate the sliding window; returns any confirmed matches.
+for match in matcher.evaluate(timestamp):
     print(f"🚨 Detected {match.profile_name}!")
 ```
 

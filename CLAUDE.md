@@ -20,7 +20,10 @@ ruff check src/
 
 # Unified CLI (preferred entry point — see src/acoustic_engine/cli.py)
 acoustic-engine profiles                                   # list built-in presets
+acoustic-engine devices                                    # list microphones (input devices)
+acoustic-engine doctor                                     # mic check: live level meter + dominant freq
 acoustic-engine run --preset smoke_t3                      # detect, zero config
+acoustic-engine run --preset smoke_t3 --on-detect 'notify-send {name}'   # act on a hit (or --webhook URL)
 acoustic-engine run --config config.example.yaml           # production
 acoustic-engine learn recording.wav --name "My Alarm"      # recording -> profile YAML
 acoustic-engine test --profile profiles/smoke_alarm.yaml --audio recording.wav -v

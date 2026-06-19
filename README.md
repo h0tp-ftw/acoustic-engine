@@ -203,35 +203,19 @@ eval_frequency: 0.5       # How often to evaluate windows
 
 ## Testing Profiles
 
-### Against Audio Files
+Use `acoustic-engine test` to run a profile (or a `--preset`) through the **real**
+engine and report detections — against a file or a live mic.
 
 ```bash
-python -m acoustic_engine.tester \
-  --profile profiles/smoke_alarm.yaml \
-  --audio recording.wav \
-  -v
+# Against an audio file (-v prints every tone the engine heard)
+acoustic-engine test --profile profiles/smoke_alarm.yaml --audio recording.wav -v
+
+# Live microphone (a directory loads every profile in it)
+acoustic-engine test --profile profiles/ --live --duration 60
+
+# Mix in noise to check robustness (types: white, pink, brown)
+acoustic-engine test --profile profiles/smoke_alarm.yaml --audio recording.wav --noise 0.3 --noise-type white
 ```
-
-### Live Microphone
-
-```bash
-python -m acoustic_engine.tester \
-  --profile profiles/ \
-  --live \
-  --duration 60
-```
-
-### With Noise Mixing
-
-```bash
-python -m acoustic_engine.tester \
-  --profile profiles/smoke_alarm.yaml \
-  --audio recording.wav \
-  --noise 0.3 \
-  --noise-type white
-```
-
-Noise types: `white`, `pink`, `brown`
 
 ---
 
@@ -322,6 +306,16 @@ engine:
 
 profiles:
   - include: "profiles/smoke_alarm.yaml"
+
+# Act on a detection (all optional; CLI --on-detect / --webhook override these)
+actions:
+  on_detect: 'notify-send "Alarm: {name}"'    # run any shell command
+  webhook: "https://ntfy.sh/my-alarms"         # and/or POST JSON to a URL
+
+mqtt:
+  enabled: false
+  broker: "localhost"
+  topic: "acoustic_engine/alerts"
 ```
 
 ### Parameter Reference
@@ -369,12 +363,19 @@ engine.start()
 
 ## CLI Tools
 
+Everything is behind the one `acoustic-engine` command (full [CLI reference](docs/cli.md)):
+
 | Command | Purpose |
 | :--- | :--- |
-| `python -m acoustic_engine.runner --config <yaml>` | Production runner (multi-config, parallel pipelines) |
-| `python -m acoustic_engine.tester --profile <yaml> --audio <file>` | Test profiles against audio files |
-| `python -m acoustic_engine.tester --profile <yaml> --live` | Live microphone testing |
-| `python -m acoustic_engine.tuner.validate --port 8787` | Validation API for the browser tuner |
+| `acoustic-engine run` | Detect from presets, profiles, or a config (live mic). `--on-detect`/`--webhook` to act on a hit. |
+| `acoustic-engine learn` | Turn a recording into a profile YAML. |
+| `acoustic-engine test` | Run a profile/preset against audio or a live mic. |
+| `acoustic-engine profiles` | List built-in presets. |
+| `acoustic-engine devices` | List microphones (input devices). |
+| `acoustic-engine doctor` | Mic check: live level meter + dominant frequency. |
+| `acoustic-engine serve` | Validation API for the browser tuner. |
+
+The `python -m acoustic_engine.runner` / `.tester` / `.tuner.validate` module forms still work; the CLI wraps them.
 
 ---
 
