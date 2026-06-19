@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.2.1
+
+### Fixed
+- Event-resolution defaults are now consistent. A partial `resolution:` block
+  (e.g. only `min_tone_duration`) filled the missing field with a 5× coarser
+  stale value (`dropout_tolerance` 0.15) instead of the engine's real default
+  (0.03), in both the profile loader and the tuner validation API.
+  `ResolutionConfig` and the live pipeline now share one source of truth
+  (0.04 / 0.03).
+
+### Changed
+- Documentation reconciled with the 1.2.0 surface (sounddevice capture,
+  `devices` / `doctor`, detection actions); CI actions bumped to their Node 24
+  runtimes; removed dead code and two misnamed scratch profiles.
+
 ## 1.2.0
 
 The theme of this release is **frictionless deployment** — turning a laptop into
