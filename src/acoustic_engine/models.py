@@ -3,6 +3,19 @@
 from dataclasses import dataclass, field
 from typing import List, Literal, Optional
 
+# Canonical event-resolution defaults — the single source of truth shared by
+# ResolutionConfig and config.EngineConfig (config.py imports these). They live
+# here, the lowest-level module with no internal imports, to avoid a cycle.
+#
+# 0.04s ≈ 2 chunks at chunk_size=1024 / 44.1kHz: fine enough that a transient
+# click doesn't register as a tone, coarse enough to confirm a real tone fast.
+DEFAULT_MIN_TONE_DURATION = 0.04  # seconds (requires ~2 chunks to confirm)
+DEFAULT_DROPOUT_TOLERANCE = 0.03  # seconds (tolerates ~1 missing chunk)
+
+# High-resolution preset, for sub-100ms patterns (e.g. a CO T4's chirps).
+HIGHRES_MIN_TONE_DURATION = 0.05  # seconds
+HIGHRES_DROPOUT_TOLERANCE = 0.05  # seconds
+
 
 @dataclass
 class Range:
@@ -31,18 +44,18 @@ class ResolutionConfig:
         dropout_tolerance: Max gap before tone is considered ended
     """
 
-    min_tone_duration: float = 0.1  # seconds
-    dropout_tolerance: float = 0.15  # seconds
+    min_tone_duration: float = DEFAULT_MIN_TONE_DURATION  # seconds
+    dropout_tolerance: float = DEFAULT_DROPOUT_TOLERANCE  # seconds
 
     @classmethod
     def high_resolution(cls) -> "ResolutionConfig":
         """Preset for fast patterns with small gaps (<100ms)."""
-        return cls(min_tone_duration=0.05, dropout_tolerance=0.05)
+        return cls(HIGHRES_MIN_TONE_DURATION, HIGHRES_DROPOUT_TOLERANCE)
 
     @classmethod
     def standard(cls) -> "ResolutionConfig":
-        """Preset for standard patterns, noise-resilient."""
-        return cls(min_tone_duration=0.1, dropout_tolerance=0.15)
+        """Preset matching the engine's default event resolution."""
+        return cls(DEFAULT_MIN_TONE_DURATION, DEFAULT_DROPOUT_TOLERANCE)
 
 
 @dataclass

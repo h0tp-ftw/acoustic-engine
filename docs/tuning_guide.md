@@ -57,8 +57,8 @@ For very fast beeps (e.g., "Fast T4" or data transmission chirps), standard sett
 
 ```yaml
 resolution:
-  min_tone_duration: 0.03 # Default 0.1s. Set lower for fast chirps.
-  dropout_tolerance: 0.03 # Default 0.15s. Lower this so gaps aren't "bridged".
+  min_tone_duration: 0.02 # Default 0.04s. Set lower for fast chirps.
+  dropout_tolerance: 0.02 # Default 0.03s. Lower this so gaps aren't "bridged".
 ```
 
 - **`min_tone_duration`**: The shortest blip of sound the engine will register as a "Tentative Event".

@@ -16,7 +16,14 @@ from typing import List, Optional, Tuple, Union
 import yaml
 
 from .errors import ConfigError
-from .models import AlarmProfile, ResolutionConfig
+from .models import (
+    DEFAULT_DROPOUT_TOLERANCE,
+    DEFAULT_MIN_TONE_DURATION,
+    HIGHRES_DROPOUT_TOLERANCE,
+    HIGHRES_MIN_TONE_DURATION,
+    AlarmProfile,
+    ResolutionConfig,
+)
 from .profiles import _parse_profile, load_profiles_from_yaml
 
 logger = logging.getLogger(__name__)
@@ -92,14 +99,12 @@ DEFAULT_SAMPLE_RATE = 44100  # Hz
 DEFAULT_CHUNK_SIZE = 1024  # samples (~23ms @ 44.1kHz); fine temporal resolution
 HIGHRES_CHUNK_SIZE = 2048  # cap applied to a larger base when a profile needs fast events
 
-# Default resolution values
-DEFAULT_MIN_TONE_DURATION = 0.04  # seconds (requires ~2 chunks to confirm)
-DEFAULT_DROPOUT_TOLERANCE = 0.03  # seconds (tolerates 1 missing chunk)
 DEFAULT_MIN_MAGNITUDE = 10.0  # Threshold for peak detection
 
-# High-resolution preset values
-HIGHRES_MIN_TONE_DURATION = 0.05  # 50ms
-HIGHRES_DROPOUT_TOLERANCE = 0.05  # 50ms
+# The resolution defaults (DEFAULT_/HIGHRES_ MIN_TONE_DURATION + DROPOUT_TOLERANCE)
+# are defined in models.py as the single source of truth and imported above. They
+# stay importable as `from .config import DEFAULT_MIN_TONE_DURATION` for the
+# tester and tuner, which is why they're re-exported from this namespace.
 
 
 def compute_finest_resolution(profiles: List[AlarmProfile]) -> Tuple[float, float]:
