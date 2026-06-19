@@ -32,8 +32,6 @@ class ToneEvent(AudioEvent):
 class SilenceEvent(AudioEvent):
     """Represents a period of silence (or non-target noise)."""
 
-    pass
-
 
 @dataclass
 class PatternMatchEvent(AudioEvent):
