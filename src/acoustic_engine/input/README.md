@@ -1,16 +1,16 @@
 # 🎙 Input Module
 
-The `input` module handles the low-level details of audio capture and hardware interfacing. It abstractions the raw audio stream into a clean, callback-based interface.
+The `input` module handles the low-level details of audio capture and hardware interfacing. It abstracts the raw audio stream into a clean, callback-based interface.
 
 ## 🛠 Components
 
 ### `AudioListener`
 
-The primary component of this module. It manages the lifecycle of an audio stream using **PyAudio**.
+The primary component of this module. It manages the lifecycle of an audio stream using **sounddevice** (PortAudio is bundled in its macOS/Windows wheels; Linux needs `libportaudio2`). If sounddevice can't be loaded it falls back to **PyAudio** — both present the same callback-per-chunk interface, so the rest of the engine is backend-agnostic.
 
 - **Threaded Capture**: Captures audio in a dedicated background thread to prevent processing jitter from causing audio dropouts.
 - **Hardware Agnostic**: Supports selecting specific device indices or using the system default.
-- **Robustness**: Uses `exception_on_overflow=False` to handle transient system load spikes gracefully without crashing.
+- **Robustness**: Tolerates transient buffer overruns without crashing the capture loop.
 
 ## 📋 usage
 
@@ -32,8 +32,8 @@ if listener.setup():
 ## ⚙️ Key Features
 
 - **Format**: Captures 16-bit PCM Mono audio at the configured sample rate.
-- **Validation**: Automatically validates device capabilities during setup.
-- **Diagnostics**: Includes `_list_devices()` for troubleshooting audio hardware paths and indices.
+- **Backend selection**: Picks sounddevice (preferred) or PyAudio at `setup()` time, with a clear install hint if neither is available.
+- **Diagnostics**: The module-level `list_input_devices()` helper enumerates input devices (used by `acoustic-engine devices` and `doctor`).
 
 ## 🔌 Decoupling
 

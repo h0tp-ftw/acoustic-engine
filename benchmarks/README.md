@@ -4,6 +4,13 @@ This directory contains a suite of rigorous tests designed to verify the engine'
 
 ## 🏃 Running Benchmarks
 
+The benchmark scripts use `scipy` (for WAV I/O), which ships in the **`dev`**
+extra — `scipy` is not a runtime dependency of the engine itself:
+
+```bash
+pip install -e ".[dev]"
+```
+
 Run all benchmarks (this may take several minutes):
 
 ```bash

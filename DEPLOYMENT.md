@@ -104,6 +104,12 @@ profiles:
   - name: "Custom_Beep"
     confirmation_cycles: 2
     segments: [...]
+
+# 5. Detection actions (optional) — run a command and/or POST a webhook on a hit.
+#    {name}/{timestamp} are substituted; $ALARM_NAME/$ALARM_TIMESTAMP are exported.
+actions:
+  on_detect: 'notify-send "Alarm: {name}"'
+  webhook: "https://ntfy.sh/my-alarms"
 ```
 
 ### Performance Tuning
@@ -164,6 +170,25 @@ Automatically creates optimized `EngineConfig` for each profile (e.g., one High-
 
 All tools live behind the `acoustic-engine` command (see the [CLI reference](docs/cli.md)).
 The `python -m acoustic_engine.<module>` forms still work if you prefer them.
+
+### Mic Diagnostics
+
+Before deploying, confirm capture works on the target device:
+
+```bash
+acoustic-engine devices      # list input devices and their indices
+acoustic-engine doctor       # 5s live level meter + dominant-frequency check
+```
+
+### Detection Actions
+
+Trigger anything on a detection without a broker — `--on-detect` runs a shell
+command, `--webhook` POSTs JSON (both also settable via the config `actions:` block):
+
+```bash
+acoustic-engine run --preset smoke_t3 --on-detect 'notify-send "Alarm: {name}"'
+acoustic-engine run --preset smoke_t3 --webhook https://ntfy.sh/my-alarms
+```
 
 ### Production Runner
 
