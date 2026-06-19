@@ -73,8 +73,8 @@ def parse_profile_from_yaml(yaml_text: str) -> AlarmProfile:
     if "resolution" in data:
         res_data = data["resolution"]
         resolution = ResolutionConfig(
-            min_tone_duration=float(res_data.get("min_tone_duration", 0.1)),
-            dropout_tolerance=float(res_data.get("dropout_tolerance", 0.15)),
+            min_tone_duration=float(res_data.get("min_tone_duration", DEFAULT_MIN_TONE_DURATION)),
+            dropout_tolerance=float(res_data.get("dropout_tolerance", DEFAULT_DROPOUT_TOLERANCE)),
         )
 
     return AlarmProfile(

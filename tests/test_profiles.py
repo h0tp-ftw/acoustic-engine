@@ -99,3 +99,26 @@ class TestSaveProfile:
         assert loaded.resolution is not None
         assert loaded.resolution.min_tone_duration == 0.03
         assert loaded.resolution.dropout_tolerance == 0.03
+
+    def test_partial_resolution_block_uses_canonical_default(self, tmp_path):
+        """A resolution block with only one field fills the other from the
+        engine's canonical default (0.03), not a coarser stale value (0.15)."""
+        from acoustic_engine.models import DEFAULT_DROPOUT_TOLERANCE
+
+        yaml_text = (
+            'name: "PartialRes"\n'
+            "resolution:\n"
+            "  min_tone_duration: 0.05\n"
+            "segments:\n"
+            '  - type: "tone"\n'
+            "    frequency: {min: 3000, max: 3100}\n"
+            "    duration: {min: 0.1, max: 0.2}\n"
+            '  - type: "silence"\n'
+            "    duration: {min: 0.1, max: 0.2}\n"
+        )
+        yaml_file = tmp_path / "partial.yaml"
+        yaml_file.write_text(yaml_text)
+
+        loaded = load_profile_from_yaml(yaml_file)
+        assert loaded.resolution.min_tone_duration == 0.05
+        assert loaded.resolution.dropout_tolerance == DEFAULT_DROPOUT_TOLERANCE == 0.03
