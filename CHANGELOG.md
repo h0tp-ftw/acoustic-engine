@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.2.0
+
+The theme of this release is **frictionless deployment** — turning a laptop into
+an alarm detector should be one `pip install` and one command.
+
+### Added
+- **`acoustic-engine devices`** lists input devices, and **`acoustic-engine doctor`**
+  runs a live level meter plus a dominant-frequency check, so you can confirm your
+  microphone works in seconds before trying to detect anything.
+- **Act on detections without a broker**: `--on-detect "command"` runs a shell
+  command on each detection (`{name}`/`{timestamp}` substituted, `$ALARM_NAME` /
+  `$ALARM_TIMESTAMP` exported) and `--webhook URL` POSTs a JSON
+  `{event, profile_name, timestamp}`. Both are also configurable via an `actions:`
+  block in a config file.
+
+### Changed
+- **Microphone capture now uses `sounddevice`** instead of PyAudio. Its macOS and
+  Windows wheels bundle PortAudio, so `pip install` needs no system packages on a
+  laptop; Linux needs only the lightweight `libportaudio2` runtime (no compiler or
+  dev headers). PyAudio still works as a fallback: `pip install 'acoustic-engine[pyaudio]'`.
+- **`scipy` is no longer a runtime dependency.** The engine never imported it; only
+  the benchmark suite does, now under the `dev` extra. Installs are smaller and
+  faster on laptops and Raspberry Pis.
+- The README no longer bills the project as an "open standard" (it is CC BY-NC);
+  the tagline now reflects what it is — lightweight, deterministic DSP detection.
+
 ## 1.1.0
 
 The theme of this release is **making the engine easy to use** — the common path

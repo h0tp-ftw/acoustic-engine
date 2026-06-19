@@ -130,15 +130,59 @@ def _utc_now_iso() -> str:
     )
 
 
+def _fire_command(command: str, name: str, timestamp: str) -> None:
+    """Run a shell command on detection, without blocking the audio loop.
+
+    ``{name}`` / ``{timestamp}`` in the command string are substituted, and the
+    same values are exported as ``$ALARM_NAME`` / ``$ALARM_TIMESTAMP`` so the
+    command can use either form. Stdlib only — no new dependency.
+    """
+    import os
+    import subprocess
+
+    rendered = command.replace("{name}", name).replace("{timestamp}", timestamp)
+    env = {**os.environ, "ALARM_NAME": name, "ALARM_TIMESTAMP": timestamp}
+    try:
+        # Popen (not run) so a slow handler never stalls detection. shell=True
+        # is intentional: this is the user's own command on their own machine.
+        subprocess.Popen(rendered, shell=True, env=env)
+        logger.info("Ran on-detect command for %s", name)
+    except Exception as e:
+        logger.error("on-detect command failed: %s", e)
+
+
+def _fire_webhook(url: str, payload: dict) -> None:
+    """POST a JSON payload to a webhook URL in a background thread (stdlib only)."""
+    import threading
+    import urllib.request
+
+    def _post() -> None:
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            url, data=data, headers={"Content-Type": "application/json"}, method="POST"
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                resp.read()
+            logger.info("Posted detection to webhook %s", url)
+        except Exception as e:
+            logger.error("Webhook POST to %s failed: %s", url, e)
+
+    threading.Thread(target=_post, daemon=True).start()
+
+
 def run_pipelines(
     pipelines: Sequence[Pipeline],
     audio_config: AudioSettings,
     mqtt_config: Optional[MQTTConfig] = None,
+    on_detect_cmd: Optional[str] = None,
+    webhook_url: Optional[str] = None,
 ) -> None:
     """Run detection for the given pipelines until interrupted (blocking).
 
-    Wires up MQTT publishing (if configured) and console logging, then starts a
-    ParallelEngine. Shared by the production runner and the CLI.
+    Wires up console logging plus any configured outputs — MQTT publish, an
+    ``on_detect_cmd`` shell command, and/or a ``webhook_url`` POST — then starts
+    a ParallelEngine. Shared by the production runner and the CLI.
     """
     if not pipelines:
         logger.error("No profiles to run.")
@@ -156,7 +200,15 @@ def run_pipelines(
 
     def handle_detection(name: str) -> None:
         logger.info(f"🚨 DETECTED: {name}")
-        publish({"event": "detected", "profile_name": name, "timestamp": _utc_now_iso()})
+        timestamp = _utc_now_iso()
+        publish({"event": "detected", "profile_name": name, "timestamp": timestamp})
+        if on_detect_cmd:
+            _fire_command(on_detect_cmd, name, timestamp)
+        if webhook_url:
+            _fire_webhook(
+                webhook_url,
+                {"event": "detected", "profile_name": name, "timestamp": timestamp},
+            )
 
     def handle_match(match) -> None:
         logger.info(f"match details: {match.profile_name} cycle={match.cycle_count}")
@@ -198,7 +250,9 @@ def run_from_configs(config_paths: Sequence[str]) -> None:
     pipelines, best_audio = build_pipelines(configs, config_paths)
 
     mqtt_config = next((c.mqtt for c in configs if c.mqtt and c.mqtt.enabled), None)
-    run_pipelines(pipelines, best_audio, mqtt_config)
+    on_detect = next((c.actions.on_detect for c in configs if c.actions.on_detect), None)
+    webhook = next((c.actions.webhook for c in configs if c.actions.webhook), None)
+    run_pipelines(pipelines, best_audio, mqtt_config, on_detect_cmd=on_detect, webhook_url=webhook)
 
 
 def _resolve_config_paths(cli_paths: Optional[Sequence[str]]) -> List[str]:

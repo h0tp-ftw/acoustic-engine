@@ -14,6 +14,7 @@ invocations:
 
 import argparse
 import logging
+import math
 import sys
 from typing import List, Optional
 
@@ -60,7 +61,16 @@ def cmd_run(args: argparse.Namespace) -> int:
         # Allow mixing a config with extra ad-hoc presets/profiles.
         pipelines = list(pipelines) + list(_gather_adhoc_profiles(args))
         mqtt_config = next((c.mqtt for c in configs if c.mqtt and c.mqtt.enabled), None)
-        runner.run_pipelines(pipelines, audio, mqtt_config)
+        # CLI flags win over the config's actions block.
+        on_detect = args.on_detect or next(
+            (c.actions.on_detect for c in configs if c.actions.on_detect), None
+        )
+        webhook = args.webhook or next(
+            (c.actions.webhook for c in configs if c.actions.webhook), None
+        )
+        runner.run_pipelines(
+            pipelines, audio, mqtt_config, on_detect_cmd=on_detect, webhook_url=webhook
+        )
         return 0
 
     profiles = _gather_adhoc_profiles(args)
@@ -78,7 +88,13 @@ def cmd_run(args: argparse.Namespace) -> int:
         audio.device_index = args.device
 
     logger.info("Listening for: %s", ", ".join(p.name for p in profiles))
-    runner.run_pipelines(profiles, audio, mqtt_config=None)
+    runner.run_pipelines(
+        profiles,
+        audio,
+        mqtt_config=None,
+        on_detect_cmd=args.on_detect,
+        webhook_url=args.webhook,
+    )
     return 0
 
 
@@ -128,6 +144,134 @@ def cmd_profiles(args: argparse.Namespace) -> int:
         tones = sum(1 for s in profile.segments if s.type == "tone")
         print(f"  {name:<12} {profile.name}")
         print(f"  {'':<12} {tones} tones, {_freq_span(profile)}, {profile.confirmation_cycles} cycle(s)")
+    return 0
+
+
+# --------------------------------------------------------------------------- #
+# devices — list microphones
+# --------------------------------------------------------------------------- #
+def cmd_devices(args: argparse.Namespace) -> int:
+    from .input.listener import audio_backend_help, list_input_devices
+
+    devices = list_input_devices()
+    if not devices:
+        print("No audio input devices found.\n")
+        print(audio_backend_help())
+        return 1
+
+    print("Input devices (use the index with: acoustic-engine run --device N):\n")
+    for d in devices:
+        marker = "  (default)" if d["default"] else ""
+        print(f"  [{d['index']}] {d['name']}{marker}")
+        print(f"        {d['channels']} input channel(s) · backend: {d['backend']}")
+    return 0
+
+
+# --------------------------------------------------------------------------- #
+# doctor — is the mic working? live level meter + dominant frequency
+# --------------------------------------------------------------------------- #
+def _draw_meter(rms: float) -> None:
+    """Draw an in-place level bar from an RMS amplitude (0..1)."""
+    bar_len = 30
+    level = min(1.0, rms / 0.3)  # ~0.3 RMS is already very loud
+    filled = int(level * bar_len)
+    db = 20 * math.log10(rms) if rms > 1e-9 else -90.0
+    bar = "#" * filled + "-" * (bar_len - filled)
+    sys.stdout.write(f"\r  level |{bar}| {db:6.1f} dBFS ")
+    sys.stdout.flush()
+
+
+def _dominant_frequency(samples, sample_rate: int) -> Optional[float]:
+    """Strongest sustained frequency (Hz) in a capture, ignoring DC/hum."""
+    import numpy as np
+
+    if len(samples) < 256:
+        return None
+    windowed = samples * np.hanning(len(samples))
+    spectrum = np.abs(np.fft.rfft(windowed))
+    freqs = np.fft.rfftfreq(len(samples), 1.0 / sample_rate)
+    mask = freqs >= 80.0  # ignore DC and mains hum
+    if not mask.any() or spectrum[mask].max() <= 0:
+        return None
+    return float(freqs[mask][int(np.argmax(spectrum[mask]))])
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    import threading
+
+    import numpy as np
+
+    from .input.listener import AudioListener, audio_backend_help, list_input_devices
+
+    audio = AudioSettings()
+    if args.device is not None:
+        audio.device_index = args.device
+
+    devices = list_input_devices()
+    if not devices and args.device is None:
+        print(audio_backend_help())
+        return 1
+
+    label = "default input device"
+    chosen = next(
+        (d for d in devices if (args.device is not None and d["index"] == args.device)),
+        next((d for d in devices if d["default"]), devices[0] if devices else None),
+    )
+    if chosen:
+        label = f"[{chosen['index']}] {chosen['name']}"
+
+    seconds = args.seconds
+    print(f"Mic check on {label} ({audio.sample_rate} Hz).")
+    print(f"Listening for {seconds:.0f}s — make some noise (clap, whistle, or set off the alarm).\n")
+
+    chunks: List[np.ndarray] = []
+    peak_rms = [0.0]
+
+    def on_chunk(chunk: np.ndarray) -> None:
+        if len(chunk) == 0:
+            return
+        chunks.append(chunk)
+        rms = float(np.sqrt(np.mean((chunk.astype(np.float32) / 32768.0) ** 2)))
+        peak_rms[0] = max(peak_rms[0], rms)
+        _draw_meter(rms)
+
+    listener = AudioListener(audio, on_chunk)
+    if not listener.setup():
+        print(audio_backend_help())
+        return 1
+
+    timer = threading.Timer(seconds, listener.stop)
+    timer.daemon = True
+    timer.start()
+    try:
+        listener.start()
+    except KeyboardInterrupt:
+        listener.stop()
+    finally:
+        timer.cancel()
+        listener.cleanup()
+    print()  # finish the meter line
+
+    if not chunks:
+        print("\nCaptured no audio. Try a specific device: acoustic-engine devices")
+        return 1
+
+    samples = np.concatenate(chunks).astype(np.float32)
+    peak_db = 20 * math.log10(peak_rms[0]) if peak_rms[0] > 1e-9 else -90.0
+    dominant = _dominant_frequency(samples, audio.sample_rate)
+
+    print()
+    if peak_db < -45:
+        print("⚠  I barely heard anything.")
+        print("   The mic may be muted or it's the wrong device.")
+        print("   List devices with `acoustic-engine devices`, then retry with --device N.")
+        return 1
+
+    print("✓  Your microphone works.")
+    print(f"   Peak level: {peak_db:.0f} dBFS")
+    if dominant:
+        print(f"   Loudest tone: ~{dominant:.0f} Hz")
+    print("\nNext: try a detector —  acoustic-engine run --preset smoke_t3")
     return 0
 
 
@@ -207,6 +351,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_run.add_argument("--device", type=int, help="Input device index (mic).")
     p_run.add_argument("--sample-rate", type=int, help="Capture sample rate in Hz.")
+    p_run.add_argument(
+        "--on-detect",
+        metavar="CMD",
+        help="Shell command to run on each detection. {name}/{timestamp} are "
+        "substituted; $ALARM_NAME/$ALARM_TIMESTAMP are also set.",
+    )
+    p_run.add_argument(
+        "--webhook",
+        metavar="URL",
+        help="POST a JSON {event,profile_name,timestamp} to this URL on each detection.",
+    )
     p_run.set_defaults(func=cmd_run)
 
     # learn
@@ -219,6 +374,20 @@ def build_parser() -> argparse.ArgumentParser:
     # profiles
     p_profiles = sub.add_parser("profiles", help="List built-in presets.")
     p_profiles.set_defaults(func=cmd_profiles)
+
+    # devices
+    p_devices = sub.add_parser("devices", help="List microphones (input devices).")
+    p_devices.set_defaults(func=cmd_devices)
+
+    # doctor
+    p_doctor = sub.add_parser(
+        "doctor", help="Check the mic works: live level meter + dominant frequency."
+    )
+    p_doctor.add_argument("--device", type=int, help="Input device index to test.")
+    p_doctor.add_argument(
+        "--seconds", type=float, default=5.0, help="How long to listen (default 5)."
+    )
+    p_doctor.set_defaults(func=cmd_doctor)
 
     # test / serve are intercepted before argparse (see main) so their own
     # flags pass through untouched; declared here only for the help listing.

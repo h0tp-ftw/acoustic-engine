@@ -36,7 +36,7 @@ src/acoustic_engine/
 ├── profiles.py               # YAML profile loading and serialization
 │
 ├── input/
-│   └── listener.py           # Audio capture (PyAudio) implementation
+│   └── listener.py           # Audio capture (sounddevice, PyAudio fallback)
 │
 ├── processing/
 │   ├── dsp.py                # FFT, SpectralMonitor, adaptive noise floor
@@ -82,7 +82,7 @@ profiles/                      # Alarm profile YAML files
 - **Component**: `AudioListener`
 - **Implementation**:
   - Runs in a **separate thread** to prevent audio dropouts during heavy processing.
-  - Uses `PyAudio` (PortAudio wrapper) to capture 16-bit mono PCM audio.
+  - Uses `sounddevice` to capture 16-bit mono PCM audio (PyAudio fallback if present).
   - Buffers incoming audio into fixed chunks (default: 1024 samples).
   - Invokes a callback for every captured chunk.
 

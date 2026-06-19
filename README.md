@@ -1,6 +1,6 @@
 # Acoustic Engine
 
-## The Open Standard for IoT Sound Recognition
+## Lightweight, Deterministic Sound Recognition for IoT
 
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC_BY--NC_4.0-lightgrey.svg?style=for-the-badge)](https://creativecommons.org/licenses/by-nc/4.0/)
@@ -17,9 +17,11 @@ A high-performance, noise-resilient DSP library designed to detect specific acou
 
 ## Features
 
+- **Installs clean on a laptop**: `pip install acoustic-engine` and go — PortAudio is bundled in the macOS/Windows wheels (Linux: one `apt` line). No compilers, no heavy ML stack.
 - **Zero-config presets**: ship-ready profiles for standardized smoke (T3) and CO (T4) alarms — `acoustic-engine run --preset smoke_t3`.
 - **Learn from a recording**: `acoustic-engine learn alarm.wav` turns a clip of *your* alarm into a working profile automatically — no DSP knowledge required.
-- **One CLI**: `run`, `learn`, `test`, `profiles`, `serve` — [reference](docs/cli.md).
+- **One CLI**: `run`, `learn`, `test`, `profiles`, `serve`, plus `devices`/`doctor` to confirm your mic works in seconds — [reference](docs/cli.md).
+- **Act on detections**: publish MQTT, POST a webhook, or run any shell command (`--on-detect`) — turn a laptop into an alarm-watching agent.
 - **Noise Resilient**: event analysis that ignores background interference (down to ~-15 dB SNR).
 - **Efficient**: real-time FFT with low CPU usage — runs comfortably on a Raspberry Pi.
 - **Easy config**: simple YAML profiles, validated on load with clear error messages.
@@ -31,19 +33,28 @@ A high-performance, noise-resilient DSP library designed to detect specific acou
 ### Installation
 
 ```bash
-# Quickest — install the latest directly (PyAudio needs PortAudio:
-# `apt install portaudio19-dev` on Debian/Ubuntu, `brew install portaudio` on macOS)
-pip install "git+https://github.com/h0tp-ftw/acoustic-engine.git"
+pip install acoustic-engine
 
-# Or clone for development, with optional extras
-#   mqtt = publish detections, tuner = browser app API, dev = tests
+# …or the very latest from git
+pip install "git+https://github.com/h0tp-ftw/acoustic-engine.git"
+```
+
+Audio capture uses **sounddevice**, whose macOS and Windows wheels bundle
+PortAudio — so on a laptop there is **nothing else to install**. On Linux, add
+the small PortAudio runtime once:
+
+```bash
+sudo apt install libportaudio2     # Debian / Ubuntu / Raspberry Pi OS
+```
+
+For development, clone with the optional extras (`mqtt` = publish detections,
+`tuner` = browser app API, `dev` = tests):
+
+```bash
 git clone https://github.com/h0tp-ftw/acoustic-engine.git
 cd acoustic-engine
 pip install -e ".[mqtt,tuner,dev]"
 ```
-
-> The stable PyPI release (`pip install acoustic-engine`) needs **1.1+** for the
-> CLI, presets, and `learn`.
 
 ### Quick Start (CLI)
 
@@ -51,6 +62,10 @@ Everything is behind one `acoustic-engine` command. The common cases need **no
 DSP knowledge and no config file**:
 
 ```bash
+# 0. Is my mic working? (lists inputs, then a 5s live level meter)
+acoustic-engine devices
+acoustic-engine doctor
+
 # 1. What can I detect out of the box?
 acoustic-engine profiles
 
@@ -62,7 +77,11 @@ acoustic-engine learn my_alarm.wav --name "My Dryer"      # writes my_alarm.yaml
 acoustic-engine test --profile my_alarm.yaml --audio my_alarm.wav -v   # verify it
 acoustic-engine run --profile my_alarm.yaml               # deploy it
 
-# 4. Production: run from a config file (multiple alarms, MQTT, tuning)
+# 4. Make it an agent — do something when it fires (no broker needed)
+acoustic-engine run --preset smoke_t3 --on-detect 'notify-send "Alarm: {name}"'
+acoustic-engine run --preset smoke_t3 --webhook https://ntfy.sh/my-alarms
+
+# 5. Production: run from a config file (multiple alarms, MQTT, tuning)
 acoustic-engine run --config config.example.yaml
 ```
 
@@ -276,7 +295,7 @@ graph TD
     end
 ```
 
-- **Input**: Hardware-agnostic. `PyAudio` for live capture, or `process_chunk()` for any source.
+- **Input**: Hardware-agnostic. `sounddevice` for live capture (PyAudio fallback), or `process_chunk()` for any source.
 - **Processing**: `SpectralMonitor` (FFT + adaptive noise floor) then `FrequencyFilter` (discards irrelevant frequencies).
 - **Analysis**: `EventGenerator` (debounces peaks into tone events) then `WindowedMatcher` (sliding window pattern matching).
 
@@ -371,8 +390,8 @@ Measured on a standard Linux workstation (x86_64):
 ### Requirements
 
 - **Python 3.9+**
-- **System Dependencies**: `portaudio` (for PyAudio microphone access)
-- **Python Libraries**: `numpy`, `scipy`, `PyAudio`, `PyYAML` (installed automatically)
+- **System Dependencies**: none on macOS/Windows; on Linux, `libportaudio2` (`sudo apt install libportaudio2`) for microphone access.
+- **Python Libraries**: `numpy`, `sounddevice`, `PyYAML` (installed automatically).
 
 ---
 

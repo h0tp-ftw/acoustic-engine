@@ -22,7 +22,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y portaudio19-dev
+        # sounddevice loads this PortAudio runtime; tests are hardware-free so
+        # this is only needed to exercise the real capture-backend import path.
+        run: sudo apt-get update && sudo apt-get install -y libportaudio2
 
       - name: Install package
         run: pip install -e ".[tuner,dev]"

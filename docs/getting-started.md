@@ -14,31 +14,35 @@ By the end you'll have:
 ## Install
 
 ```bash
-# Latest (includes the CLI, presets, and `learn` — recommended for now)
-pip install "git+https://github.com/h0tp-ftw/acoustic-engine.git"
-
-# Or the stable PyPI release (needs 1.1+ for the commands in this guide)
 pip install acoustic-engine
+
+# …or the very latest from git
+pip install "git+https://github.com/h0tp-ftw/acoustic-engine.git"
 ```
 
-The engine captures audio with PyAudio, which needs the PortAudio system
-library. If `pip install` complains about PortAudio:
+Audio capture uses **sounddevice**, whose macOS and Windows wheels bundle the
+PortAudio library — so on a laptop there's nothing else to install. Only Linux
+needs the small PortAudio runtime:
 
-| OS | Install PortAudio |
+| OS | Extra step |
 | :-- | :-- |
-| Debian / Ubuntu / Raspberry Pi OS | `sudo apt install portaudio19-dev` |
-| macOS (Homebrew) | `brew install portaudio` |
-| Windows | nothing to do — the PyAudio wheel is self-contained |
+| macOS / Windows | none — PortAudio ships inside the wheel |
+| Debian / Ubuntu / Raspberry Pi OS | `sudo apt install libportaudio2` |
 
 Optional features are extras: `pip install "acoustic-engine[mqtt]"` (publish
 detections to MQTT) and `pip install "acoustic-engine[tuner]"` (the browser
 profile builder). You can combine them: `pip install "acoustic-engine[mqtt,tuner]"`.
 
-Check it installed:
+Check it installed, and confirm your microphone is found and working:
 
 ```bash
 acoustic-engine --version
+acoustic-engine devices     # list input devices (note the index you want)
+acoustic-engine doctor      # 5s live level meter + a "your mic works" verdict
 ```
+
+If `doctor` says it barely heard anything, pick a specific input with
+`acoustic-engine doctor --device N` (the index from `devices`).
 
 ---
 
@@ -168,8 +172,19 @@ When an alarm is detected you'll see:
 
 ### Do something when it fires
 
-To trigger automations (Home Assistant, Node-RED, a phone notification), publish
-detections to MQTT. Create `config.yaml`:
+The simplest path needs no broker — run a command or hit a webhook on each
+detection:
+
+```bash
+# Run any shell command. {name}/{timestamp} are substituted; $ALARM_NAME is also set.
+acoustic-engine run --profile my_alarm.yaml --on-detect 'notify-send "Alarm: {name}"'
+
+# Or POST a JSON {event, profile_name, timestamp} to a URL
+# (ntfy.sh for a phone push, a Discord/Slack webhook, a Home Assistant endpoint…)
+acoustic-engine run --profile my_alarm.yaml --webhook https://ntfy.sh/my-alarms
+```
+
+For a home-automation hub, publish detections to MQTT instead. Create `config.yaml`:
 
 ```yaml
 profiles:
