@@ -1,7 +1,7 @@
 FROM python:3.11-slim-bookworm
 
 RUN apt-get update && apt-get install -y \
-    portaudio19-dev \
+    libportaudio2 \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 

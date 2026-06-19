@@ -14,8 +14,9 @@ Start here and go as deep as you need.
 ## The 30-second version
 
 ```bash
-pip install acoustic-engine            # + system PortAudio (see Getting Started)
+pip install acoustic-engine            # Linux only: sudo apt install libportaudio2
 
+acoustic-engine doctor                 # is my mic working? (live level meter)
 acoustic-engine profiles               # what can I detect out of the box?
 acoustic-engine run --preset smoke_t3  # detect a standard smoke alarm, zero config
 

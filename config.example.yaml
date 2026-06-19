@@ -49,3 +49,11 @@ mqtt:
   # username: "mqtt_user"
   # password: "mqtt_password"
   # client_id: "acoustic_alarm_monitor"
+
+# Detection Actions (Optional) — do something when an alarm fires, no broker needed.
+# on_detect runs a shell command ({name}/{timestamp} substituted; $ALARM_NAME /
+# $ALARM_TIMESTAMP exported). webhook POSTs {event, profile_name, timestamp} as JSON.
+# CLI flags --on-detect / --webhook override these.
+# actions:
+#   on_detect: 'notify-send "Alarm: {name}"'
+#   webhook: "https://ntfy.sh/my-alarms"

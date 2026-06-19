@@ -259,73 +259,55 @@ class TestRunner:
         """Run live microphone detection test.
 
         Args:
-            duration: How long to listen in seconds
+            duration: How long to listen in seconds (0 = until Ctrl-C).
         """
-        try:
-            import pyaudio
-        except ImportError:
-            self.display.error("pyaudio not installed. Run: pip install pyaudio")
-            return
+        import threading
+
+        from ..input.listener import AudioListener, audio_backend_help
 
         self.display.separator()
 
-        # Suppress ALSA error messages that spam the console
-        from ctypes import CDLL
-
-        def _alsa_error_handler(*args):
-            """Dummy error handler to suppress ALSA warnings."""
-            pass
-
-        try:
-            asound = CDLL("libasound.so.2")
-            asound.snd_lib_error_set_handler(_alsa_error_handler)
-        except OSError:
-            pass  # libasound not available, skip suppression
-        except Exception:
-            pass  # If anything goes wrong, just continue without suppression
-
-        pa = pyaudio.PyAudio()
-
-        stream = pa.open(
-            format=pyaudio.paInt16,
-            channels=1,
-            rate=self.sample_rate,
-            input=True,
-            frames_per_buffer=self.chunk_size,
+        audio_config = AudioSettings(
+            sample_rate=self.sample_rate, chunk_size=self.chunk_size, channels=1
         )
 
-        start_time = time.time()
         chunk_count = 0
 
+        def on_chunk(audio_chunk: np.ndarray) -> None:
+            nonlocal chunk_count
+            # Apply noise mixing (for testing robustness)
+            if self.noise_level > 0:
+                audio_float = audio_chunk.astype(np.float32) / 32768.0
+                audio_float = self.mixer.mix_noise(
+                    audio_float, noise_type=self.noise_type, level=self.noise_level
+                )
+                audio_chunk = (audio_float * 32768).astype(np.int16)
+
+            timestamp = chunk_count * self.chunk_size / self.sample_rate
+            self._process_chunk(audio_chunk, timestamp)
+            chunk_count += 1
+
+        listener = AudioListener(audio_config, on_chunk)
+        if not listener.setup():
+            self.display.error(audio_backend_help())
+            return
+
+        start_time = time.time()
+        timer = None
+        if duration and duration > 0:
+            timer = threading.Timer(duration, listener.stop)
+            timer.daemon = True
+            timer.start()
+
         try:
-            while True:
-                # Only check duration if > 0 (0 means infinite)
-                if duration > 0:
-                    elapsed = time.time() - start_time
-                    if elapsed >= duration:
-                        break
-
-                # Read audio chunk
-                data = stream.read(self.chunk_size, exception_on_overflow=False)
-                audio_chunk = np.frombuffer(data, dtype=np.int16)
-
-                # Apply noise mixing (for testing robustness)
-                if self.noise_level > 0:
-                    audio_float = audio_chunk.astype(np.float32) / 32768.0
-                    audio_float = self.mixer.mix_noise(
-                        audio_float, noise_type=self.noise_type, level=self.noise_level
-                    )
-                    audio_chunk = (audio_float * 32768).astype(np.int16)
-
-                timestamp = chunk_count * self.chunk_size / self.sample_rate
-                self._process_chunk(audio_chunk, timestamp)
-
-                chunk_count += 1
-
+            listener.start()
+        except KeyboardInterrupt:
+            pass
         finally:
-            stream.stop_stream()
-            stream.close()
-            pa.terminate()
+            if timer is not None:
+                timer.cancel()
+            listener.stop()
+            listener.cleanup()
             self.results.duration = time.time() - start_time
 
     def _process_chunk(self, chunk: np.ndarray, timestamp: float):

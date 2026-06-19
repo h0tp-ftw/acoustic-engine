@@ -385,6 +385,21 @@ class MQTTConfig:
 
 
 @dataclass
+class ActionsConfig:
+    """What to do when an alarm is detected, beyond logging/MQTT.
+
+    Attributes:
+        on_detect: Shell command to run on each detection. ``{name}`` /
+            ``{timestamp}`` are substituted; ``$ALARM_NAME`` / ``$ALARM_TIMESTAMP``
+            are also exported to its environment.
+        webhook: URL to POST a JSON ``{event, profile_name, timestamp}`` payload to.
+    """
+
+    on_detect: Optional[str] = None
+    webhook: Optional[str] = None
+
+
+@dataclass
 class GlobalConfig:
     """Unified configuration for the entire application.
 
@@ -397,6 +412,7 @@ class GlobalConfig:
     audio: AudioSettings = field(default_factory=AudioSettings)
     profiles: List[AlarmProfile] = field(default_factory=list)
     mqtt: MQTTConfig = field(default_factory=MQTTConfig)
+    actions: ActionsConfig = field(default_factory=ActionsConfig)
     # The calculated engine config based on the above
     engine: EngineConfig = field(default_factory=EngineConfig)
 
@@ -515,10 +531,18 @@ class GlobalConfig:
             client_id=mqtt_data.get("client_id"),
         )
 
+        # 7. Parse detection Actions (on_detect command / webhook)
+        actions_data = data.get("actions", {}) or {}
+        actions_config = ActionsConfig(
+            on_detect=actions_data.get("on_detect"),
+            webhook=actions_data.get("webhook"),
+        )
+
         return cls(
             system=system_config,
             audio=audio_config,
             profiles=profiles,
             mqtt=mqtt_config,
+            actions=actions_config,
             engine=engine_config,
         )

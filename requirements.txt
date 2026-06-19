@@ -1,11 +1,14 @@
 # Full dependency set. For a minimal install use `pip install acoustic-engine`
-# (core only) and add extras as needed: [mqtt], [tuner], [dev], [audio].
+# (core only) and add extras as needed: [mqtt], [tuner], [audio], [pyaudio], [dev].
 
 # Core Engine Dependencies
 numpy>=1.21.0
-scipy>=1.7.0
-PyAudio>=0.2.11
+sounddevice>=0.4.6   # Mic capture. Win/macOS wheels bundle PortAudio;
+                     # on Linux: sudo apt install libportaudio2
 PyYAML>=6.0
+
+# Optional: legacy capture backend  (extra: pyaudio)
+# PyAudio>=0.2.11    # needs portaudio19-dev + a C compiler at install time
 
 # Optional: MQTT notifications  (extra: mqtt)
 paho-mqtt>=2.1.0

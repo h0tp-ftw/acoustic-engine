@@ -9,6 +9,8 @@ acoustic-engine <command> [options]
   learn      Build a profile YAML from a recording.
   test       Test a profile/preset against audio.
   profiles   List built-in presets.
+  devices    List microphones (input devices).
+  doctor     Check the mic works: live level meter + dominant frequency.
   serve      Run the validation API used by the browser tuner.
 ```
 
@@ -27,18 +29,22 @@ Runs the detector on live microphone input until interrupted (Ctrl-C).
 
 ```
 acoustic-engine run [-c CONFIG] [-p PRESET] [-f PROFILE] [--device N] [--sample-rate HZ]
+                    [--on-detect CMD] [--webhook URL]
 ```
 
 | Option | Description |
 | :-- | :-- |
 | `-p, --preset NAME` | Built-in preset to detect (repeatable). See `acoustic-engine profiles`. |
 | `-f, --profile FILE` | Profile YAML to detect (repeatable). |
-| `-c, --config FILE` | Full config YAML — audio settings, multiple profiles, MQTT (repeatable). |
-| `--device N` | Input device index (which microphone). |
+| `-c, --config FILE` | Full config YAML — audio settings, multiple profiles, MQTT, actions (repeatable). |
+| `--device N` | Input device index (which microphone — see `acoustic-engine devices`). |
 | `--sample-rate HZ` | Capture sample rate (default 44100). |
+| `--on-detect CMD` | Shell command to run on each detection. `{name}`/`{timestamp}` are substituted; `$ALARM_NAME`/`$ALARM_TIMESTAMP` are exported. |
+| `--webhook URL` | POST a JSON `{event, profile_name, timestamp}` to this URL on each detection. |
 
 With no source given, `run` falls back to `$ACOUSTIC_CONFIG`, then `./config.yaml`.
-You can mix sources, e.g. a config plus an extra preset.
+You can mix sources, e.g. a config plus an extra preset. CLI `--on-detect` /
+`--webhook` override an `actions:` block in a config file.
 
 ```bash
 acoustic-engine run --preset smoke_t3                 # one preset
@@ -46,6 +52,10 @@ acoustic-engine run --preset smoke_t3 --preset co_t4  # several at once
 acoustic-engine run --profile my_alarm.yaml
 acoustic-engine run --config config.yaml              # production
 acoustic-engine run --config config.yaml --preset co_t4
+
+# Act on a detection without any broker:
+acoustic-engine run --preset smoke_t3 --on-detect 'notify-send "Alarm: {name}"'
+acoustic-engine run --preset smoke_t3 --webhook https://ntfy.sh/my-alarms
 ```
 
 ---
@@ -117,6 +127,39 @@ acoustic-engine profiles
 
 Prints each preset's name, the sound it matches, and a one-line summary. Use a
 name with `run --preset` or `test --preset`.
+
+---
+
+## `devices` — list microphones
+
+```bash
+acoustic-engine devices
+```
+
+Prints each input device with its index, name, channel count, and which backend
+saw it. Use an index with `run --device N` or `doctor --device N`.
+
+---
+
+## `doctor` — is the mic working?
+
+Captures a few seconds from the microphone, shows a live level meter, and
+reports the loudest frequency plus a plain-English verdict — the fastest way to
+confirm capture works before you try to detect anything.
+
+```
+acoustic-engine doctor [--device N] [--seconds SEC]
+```
+
+| Option | Description |
+| :-- | :-- |
+| `--device N` | Input device index to test (see `acoustic-engine devices`). |
+| `--seconds SEC` | How long to listen (default 5). |
+
+```bash
+acoustic-engine doctor                 # test the default input for 5s
+acoustic-engine doctor --device 2 --seconds 8
+```
 
 ---
 
