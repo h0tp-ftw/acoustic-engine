@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.0
+
+### Added
+- **Rhythm-specific matching.** The pattern matcher now validates the silence
+  *between* tones, not just the tones themselves — correctly-pitched beeps at the
+  wrong spacing (a different cadence) are no longer detected as the alarm. The
+  gap check is reverb-tolerant (a reverb tail that inflates a tone's measured
+  duration is credited back to the following gap) and skips sub-150 ms gaps that
+  are too short to measure reliably, so fast patterns (e.g. a CO T4) still
+  detect. Existing profiles need no changes — they just get more specific.
+
 ## 1.2.1
 
 ### Fixed
