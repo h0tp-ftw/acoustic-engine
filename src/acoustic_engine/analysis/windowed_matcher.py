@@ -3,10 +3,18 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from ..events import PatternMatchEvent, ToneEvent
-from ..models import AlarmProfile
+from ..models import AlarmProfile, Segment
 from .event_buffer import EventBuffer
 
 logger = logging.getLogger(__name__)
+
+# Below this silence length, per-gap rhythm validation is skipped. Such gaps are
+# comparable to the engine's timing resolution (a chunk is ~20-90ms; events carry
+# similar jitter), so enforcing them rejects more real detections than the
+# specificity they buy. Fast/dense patterns stay specific via their tone density,
+# and their discriminating long inter-cycle gap is well above this threshold and
+# still validated.
+MIN_SILENCE_FOR_RHYTHM_CHECK = 0.15  # seconds
 
 
 @dataclass
@@ -244,6 +252,16 @@ class WindowedMatcher:
 
         return None
 
+    def _gap_matches(self, gap: float, silence_seg: Segment) -> bool:
+        """Whether a measured inter-tone gap fits a silence segment's bounds.
+
+        Uses the same relax factors as tone-duration matching, so the rhythm
+        check is as forgiving as the pitch/duration checks.
+        """
+        gap_min = silence_seg.duration.min * self.duration_relax_low
+        gap_max = silence_seg.duration.max * self.duration_relax_high
+        return gap_min <= gap <= gap_max
+
     def _count_pattern_cycles(
         self,
         events: List[ToneEvent],
@@ -270,6 +288,16 @@ class WindowedMatcher:
 
         cycle_count = 0
         event_idx = 0
+
+        # End time of the last matched tone and the silence segment that must
+        # bridge it to the next matched tone. Carried across cycle boundaries so
+        # the inter-cycle gap is validated too. `None` until the first tone is
+        # matched (nothing precedes it to measure a gap from). prev_tone_overflow
+        # is how much that tone measured *longer* than its nominal max (reverb
+        # tail) — credited back to the gap so smearing doesn't fail the rhythm.
+        prev_tone_end: Optional[float] = None
+        prev_tone_overflow: float = 0.0
+        bridging_silence: Optional[Segment] = None
 
         # Try to match complete cycles
         while event_idx < len(events):
@@ -302,12 +330,27 @@ class WindowedMatcher:
                     dur_max = tone_seg.duration.max * self.duration_relax_high
                     dur_match = dur_min <= event.duration <= dur_max
 
-                    if freq_match and dur_match:
+                    # 3. Check the silence gap from the previous matched tone.
+                    # This is what makes detection rhythm-specific: correctly
+                    # pitched beeps at the wrong spacing are NOT the alarm.
+                    # A reverb tail inflates the previous tone's measured duration
+                    # and so shortens this gap; credit that overflow back, since
+                    # the duration check already accepted the longer tone.
+                    gap_match = True
+                    if (
+                        prev_tone_end is not None
+                        and bridging_silence is not None
+                        and bridging_silence.duration.max >= MIN_SILENCE_FOR_RHYTHM_CHECK
+                    ):
+                        gap = (event.timestamp - prev_tone_end) + prev_tone_overflow
+                        gap_match = self._gap_matches(gap, bridging_silence)
+
+                    if freq_match and dur_match and gap_match:
                         matched_seg = True
                         break  # Found our match!
                     else:
-                        # This event didn't match. Is it noise?
-                        # Skip it and look at the next one
+                        # Wrong pitch/duration, or wrong spacing — treat as noise,
+                        # skip it and look at the next one.
                         temp_idx += 1
                         skipped_noise += 1
 
@@ -315,22 +358,15 @@ class WindowedMatcher:
                     cycle_matched = False
                     break
 
-                # If we found the tone, we need to validate the gap to the NEXT tone (if applicable)
-                if seg_idx < len(tone_segments) - 1:
-                    # We are at 'event' (at temp_idx).
-                    # The next iteration of the outer loop will search for the next tone.
-                    # We defer the gap check to the finding of the NEXT tone.
-                    # But we need to ensure the gap *wasn't too long* or *too short*.
-                    # Since we don't know where the next tone is yet, we can't fully validate
-                    # the silence here easily without looking ahead.
-
-                    # Simplified approach: We trust the "search" for the next tone to handle
-                    # the timing implicitly.
-                    if seg_idx < len(silence_segments):
-                        # We can't check the gap until we find the next tone.
-                        # So we'll skip gap validation here and rely on the fact that
-                        # if the next tone is too far away, it effectively breaks the "rhythm".
-                        pass
+                # Record this tone's end and the silence that bridges to the next
+                # tone (the next segment within the cycle, or — for the last tone —
+                # the inter-cycle gap). Only enforce a gap the profile defines.
+                matched_event = events[temp_idx]
+                prev_tone_end = matched_event.timestamp + matched_event.duration
+                prev_tone_overflow = max(0.0, matched_event.duration - tone_seg.duration.max)
+                bridging_silence = (
+                    silence_segments[seg_idx] if seg_idx < len(silence_segments) else None
+                )
 
                 # Prepare for next segment
                 temp_idx += 1
@@ -341,10 +377,7 @@ class WindowedMatcher:
                 # Advance the main event pointer to where this cycle ended
                 event_idx = temp_idx
             else:
-                # If first cycle didn't match, we're done with this start point
-                if cycle_count == 0:
-                    break
-                # If we matched some cycles but failed this one, stop counting
+                # Cycles must be consecutive; stop counting at the first failure.
                 break
 
         return cycle_count

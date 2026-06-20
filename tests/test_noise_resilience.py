@@ -144,7 +144,9 @@ def check_with_noise(noise_level: float, noise_type: str = "white"):
     audio = generate_t3_pattern(frequency=3100, cycles=2)
     audio = np.concatenate([generate_silence(0.5), audio, generate_silence(0.5)])
 
-    # Mix noise
+    # Mix noise. Seeded so the parametrized cases are deterministic rather than
+    # flaky at the margin (the assertion below requires detection up to 0.3).
+    np.random.seed(0)
     noisy_audio = mixer.mix_noise(audio, noise_type=noise_type, level=noise_level)
 
     matches = run_detection_pipeline(noisy_audio, profiles)

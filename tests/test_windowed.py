@@ -76,6 +76,66 @@ def test_engine_with_windowed_matcher():
     print("✓ Engine correctly uses WindowedMatcher")
 
 
+def _t3_profile():
+    from acoustic_engine.models import AlarmProfile, Range, Segment
+
+    def tone():
+        return Segment(type="tone", frequency=Range(2900, 3100), duration=Range(0.4, 0.6))
+
+    def sil(lo, hi):
+        return Segment(type="silence", duration=Range(lo, hi))
+
+    return AlarmProfile(
+        name="T3",
+        segments=[tone(), sil(0.4, 0.6), tone(), sil(0.4, 0.6), tone(), sil(1.3, 1.7)],
+        confirmation_cycles=2,
+    )
+
+
+def _beep_cycles(gap, long_gap=1.5, beep=0.5, freq=3000.0, cycles=2):
+    """Two cycles of 3 beeps, with `gap` between beeps and `long_gap` between cycles."""
+    events, t = [], 0.0
+    for _ in range(cycles):
+        for i in range(3):
+            events.append(ToneEvent(timestamp=round(t, 3), duration=beep, frequency=freq, magnitude=0.8))
+            t += beep + (gap if i < 2 else long_gap)
+    return events
+
+
+def _matches(profile, events, at=10.0):
+    matcher = WindowedMatcher([profile])
+    for e in events:
+        matcher.add_event(e)
+    return len(matcher.evaluate(at))
+
+
+def test_gap_validation_rejects_wrong_rhythm():
+    """Correctly-pitched beeps at the wrong spacing must NOT match the pattern."""
+    profile = _t3_profile()
+    # Correct 0.5s gaps detect.
+    assert _matches(profile, _beep_cycles(0.5)) == 1
+    # Wrong rhythms (too fast / too slow) are rejected — the gaps don't fit.
+    assert _matches(profile, _beep_cycles(0.2)) == 0
+    assert _matches(profile, _beep_cycles(1.0)) == 0
+    assert _matches(profile, _beep_cycles(2.0)) == 0
+    print("✓ Gap validation rejects wrong rhythms")
+
+
+def test_gap_validation_tolerates_reverb_smearing():
+    """Reverb inflates a tone's measured duration, shrinking the following gap;
+    crediting that overflow back keeps the rhythm matching (no false negative)."""
+    profile = _t3_profile()
+    # Tones measure 0.7s (> nominal max 0.6) so end-to-start gaps shrink to 0.3s,
+    # below the relaxed floor (0.32) — yet detection must still succeed.
+    events, t = [], 0.0
+    for _ in range(2):
+        for i in range(3):
+            events.append(ToneEvent(timestamp=round(t, 3), duration=0.7, frequency=3000, magnitude=0.8))
+            t += 0.7 + (0.3 if i < 2 else 1.3)
+    assert _matches(profile, events) == 1
+    print("✓ Gap validation tolerates reverb-smeared gaps")
+
+
 def main():
     print("=" * 50)
     print("Windowed Matcher Integration Tests")
