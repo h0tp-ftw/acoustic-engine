@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Record an alarm straight into a profile.** `acoustic-engine learn --record`
+  captures live from the microphone (interactive press-Enter-to-stop, or a fixed
+  `--seconds`) with a level meter, runs the existing inference pipeline, and
+  writes the profile — closing the record → profile → detect loop on the device
+  with no external recorder. The capture is kept as a WAV next to the profile so
+  it can be re-tested and re-learned, and the inferred tone/silence pattern is
+  printed for a sanity-check. `--device`, `--sample-rate`, `--name`, and `-o`
+  are supported; learning from a WAV file works exactly as before.
+- **New [Recording Guide](docs/recording.md)** covering the full workflow:
+  capture technique, reading the inferred pattern, verifying, hand-tweaking,
+  fast (T4) alarms, learning from a phone recording, and troubleshooting.
+
 ## 1.3.0
 
 ### Added

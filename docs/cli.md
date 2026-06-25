@@ -101,6 +101,10 @@ minimal background noise. From a file, WAV only — convert other formats first
 (`ffmpeg -i in.mp3 -ac 1 -ar 44100 out.wav`). Always verify the result with
 `test`. See the [Profiles guide](profiles.md) if the pattern needs a tweak.
 
+For the complete record → learn → verify → tweak workflow — capture technique,
+reading the inferred-pattern summary, fast (T4) alarms, and troubleshooting —
+see the **[Recording Guide](recording.md)**.
+
 ---
 
 ## `test` — check a profile against audio

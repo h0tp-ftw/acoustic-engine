@@ -163,6 +163,10 @@ before touching anything advanced:
   durations (seconds). Bump a `frequency` range out by ±100 Hz, or a `duration`
   range a little wider. No DSP needed. See the [Profiles guide](profiles.md).
 
+> Want the full playbook — recording technique, reading the inferred pattern,
+> fast (T4) alarms, learning from a phone recording, every troubleshooting case?
+> See the **[Recording Guide](recording.md)**.
+
 ---
 
 ## Step 3 — Run it for real

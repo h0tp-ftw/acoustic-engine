@@ -107,6 +107,7 @@ docker compose run --rm engine acoustic-engine run --preset smoke_t3
 | Guide | What's in it |
 | :-- | :-- |
 | **[Getting Started](docs/getting-started.md)** | Install → detect → learn your own alarm → deploy. Start here. |
+| [Recording Guide](docs/recording.md) | Record an alarm into a profile: `learn --record`, capture technique, verify & tweak. |
 | [CLI Reference](docs/cli.md) | Every command and option. |
 | [Profiles & Troubleshooting](docs/profiles.md) | How profiles work, and fixes for "won't detect" / "false alarms". |
 | [Deployment](deploy/README.md) | systemd, Docker, hardware tips. |
@@ -369,7 +370,7 @@ Everything is behind the one `acoustic-engine` command (full [CLI reference](doc
 | Command | Purpose |
 | :--- | :--- |
 | `acoustic-engine run` | Detect from presets, profiles, or a config (live mic). `--on-detect`/`--webhook` to act on a hit. |
-| `acoustic-engine learn` | Turn a recording into a profile YAML. |
+| `acoustic-engine learn` | Turn a recording into a profile YAML — live from the mic (`--record`) or a WAV file. See the [Recording Guide](docs/recording.md). |
 | `acoustic-engine test` | Run a profile/preset against audio or a live mic. |
 | `acoustic-engine profiles` | List built-in presets. |
 | `acoustic-engine devices` | List microphones (input devices). |
