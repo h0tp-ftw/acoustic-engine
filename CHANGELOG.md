@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.4.0
 
 ### Added
 - **Record an alarm straight into a profile.** `acoustic-engine learn --record`
