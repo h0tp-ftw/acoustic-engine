@@ -25,7 +25,8 @@ acoustic-engine doctor                                     # mic check: live lev
 acoustic-engine run --preset smoke_t3                      # detect, zero config
 acoustic-engine run --preset smoke_t3 --on-detect 'notify-send {name}'   # act on a hit (or --webhook URL)
 acoustic-engine run --config config.example.yaml           # production
-acoustic-engine learn recording.wav --name "My Alarm"      # recording -> profile YAML
+acoustic-engine learn --record --name "My Alarm"           # mic -> profile YAML (live capture)
+acoustic-engine learn recording.wav --name "My Alarm"      # recording file -> profile YAML
 acoustic-engine test --profile profiles/smoke_alarm.yaml --audio recording.wav -v
 acoustic-engine serve --port 8787                          # validation API for the tuner
 

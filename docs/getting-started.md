@@ -111,35 +111,46 @@ acoustic-engine run --preset smoke_t3
 ## Step 2 — Teach it *your* alarm
 
 Most real alarms (your dishwasher, dryer, a specific medical monitor) aren't a
-standard T3/T4. Instead of hand-writing a profile, record the sound once and let
-the engine learn it.
+standard T3/T4. Instead of hand-writing a profile, let the engine *hear* the
+alarm once and build the profile for you.
 
-**Record ~10–20 seconds** of the alarm as a WAV — a few repeats of the pattern,
-as little background noise as possible. Any recorder works; on Linux you can use:
-
-```bash
-arecord -f S16_LE -r 44100 -c 1 my_alarm.wav   # Ctrl-C when done
-```
-
-(If your recording is an MP3/M4A, convert it: `ffmpeg -i clip.mp3 -ac 1 -ar 44100 my_alarm.wav`.)
-
-**Learn a profile from it:**
+**Record it straight from the mic** — no separate recorder, no files to move
+around. Set off the alarm near the microphone and run:
 
 ```bash
-acoustic-engine learn my_alarm.wav --name "My Dryer"
+acoustic-engine learn --record --name "My Dryer"
 ```
 
+It shows a live level meter so you can see it's hearing the alarm. Let it run
+through **several repeats of the pattern** (press Enter to stop, or use
+`--seconds 15` for a fixed capture), then it prints what it heard:
+
 ```
-Wrote profile 'My Dryer' (6 segments) to my_alarm.yaml
+Captured 15.0s of audio (peak -12 dBFS).
+Wrote profile 'My Dryer' (6 segments) to my_dryer.yaml
+Kept the recording at my_dryer.wav
+
+Inferred pattern (sanity-check it, then hand-edit the YAML if needed):
+  tone      3000-3200 Hz for 0.45-0.55s
+  silence                 0.45-0.70s
+  ...
 Verify it against the recording with:
-  acoustic-engine test --profile my_alarm.yaml --audio my_alarm.wav -v
+  acoustic-engine test --profile my_dryer.yaml --audio my_dryer.wav -v
 ```
+
+The recording is kept next to the profile (`my_dryer.wav`) so you can re-verify
+and re-`learn` it later without setting the alarm off again.
+
+> **Already have a recording?** Point `learn` at a WAV file instead:
+> `acoustic-engine learn my_alarm.wav --name "My Dryer"`. Any recorder works —
+> on Linux, `arecord -f S16_LE -r 44100 -c 1 my_alarm.wav` (Ctrl-C when done);
+> convert other formats with `ffmpeg -i clip.mp3 -ac 1 -ar 44100 my_alarm.wav`.
 
 The engine extracts the repeating tone/silence pattern and writes a ready-to-use
-`my_alarm.yaml`. **Verify it** against the recording:
+YAML. **Verify it** against the recording:
 
 ```bash
-acoustic-engine test --profile my_alarm.yaml --audio my_alarm.wav -v
+acoustic-engine test --profile my_dryer.yaml --audio my_dryer.wav -v
 ```
 
 If it says `✓ PASS`, you're done — skip to Step 3.
@@ -148,7 +159,7 @@ If it doesn't detect, or it fires on the wrong sounds, you have two easy levers
 before touching anything advanced:
 
 - **Re-record** a cleaner, louder sample and `learn` again. Garbage in, garbage out.
-- **Open `my_alarm.yaml` and widen the shape** — it's just frequencies (Hz) and
+- **Open `my_dryer.yaml` and widen the shape** — it's just frequencies (Hz) and
   durations (seconds). Bump a `frequency` range out by ±100 Hz, or a `duration`
   range a little wider. No DSP needed. See the [Profiles guide](profiles.md).
 
@@ -159,7 +170,7 @@ before touching anything advanced:
 Foreground (good for trying things out — Ctrl-C to stop):
 
 ```bash
-acoustic-engine run --profile my_alarm.yaml
+acoustic-engine run --profile my_dryer.yaml
 # or a preset, or several at once:
 acoustic-engine run --preset smoke_t3 --preset co_t4
 ```

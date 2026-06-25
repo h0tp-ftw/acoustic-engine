@@ -19,7 +19,7 @@ A high-performance, noise-resilient DSP library designed to detect specific acou
 
 - **Installs clean on a laptop**: `pip install acoustic-engine` and go — PortAudio is bundled in the macOS/Windows wheels (Linux: one `apt` line). No compilers, no heavy ML stack.
 - **Zero-config presets**: ship-ready profiles for standardized smoke (T3) and CO (T4) alarms — `acoustic-engine run --preset smoke_t3`.
-- **Learn from a recording**: `acoustic-engine learn alarm.wav` turns a clip of *your* alarm into a working profile automatically — no DSP knowledge required.
+- **Learn by listening**: `acoustic-engine learn --record` hears *your* alarm from the mic and writes a working profile — or point it at a WAV (`learn alarm.wav`). No DSP knowledge required.
 - **One CLI**: `run`, `learn`, `test`, `profiles`, `serve`, plus `devices`/`doctor` to confirm your mic works in seconds — [reference](docs/cli.md).
 - **Act on detections**: publish MQTT, POST a webhook, or run any shell command (`--on-detect`) — turn a laptop into an alarm-watching agent.
 - **Noise Resilient**: event analysis that ignores background interference (down to ~-15 dB SNR).
@@ -72,10 +72,11 @@ acoustic-engine profiles
 # 2. Listen for a standard smoke alarm (ISO 8201 T3) — zero config
 acoustic-engine run --preset smoke_t3
 
-# 3. Have a recording of YOUR alarm? Turn it into a profile automatically
-acoustic-engine learn my_alarm.wav --name "My Dryer"      # writes my_alarm.yaml
-acoustic-engine test --profile my_alarm.yaml --audio my_alarm.wav -v   # verify it
-acoustic-engine run --profile my_alarm.yaml               # deploy it
+# 3. Teach it YOUR alarm — record it live and turn it into a profile
+acoustic-engine learn --record --name "My Dryer"          # mic -> my_dryer.yaml (+ .wav)
+acoustic-engine test --profile my_dryer.yaml --audio my_dryer.wav -v   # verify it
+acoustic-engine run --profile my_dryer.yaml               # deploy it
+#    (already have a clip? use it instead:  acoustic-engine learn my_alarm.wav)
 
 # 4. Make it an agent — do something when it fires (no broker needed)
 acoustic-engine run --preset smoke_t3 --on-detect 'notify-send "Alarm: {name}"'

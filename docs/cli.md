@@ -63,25 +63,41 @@ acoustic-engine run --preset smoke_t3 --webhook https://ntfy.sh/my-alarms
 ## `learn` — recording → profile
 
 Runs the real DSP front-end on a recording, finds the repeating pattern, and
-writes a working profile YAML.
+writes a working profile YAML. The recording can come straight from the mic
+(`--record`) or from a WAV file you already have.
 
 ```
-acoustic-engine learn AUDIO [--name NAME] [-o OUTPUT]
+acoustic-engine learn [AUDIO] [--record] [--device N] [--seconds SEC]
+                      [--sample-rate HZ] [--name NAME] [-o OUTPUT]
 ```
 
 | Argument / Option | Description |
 | :-- | :-- |
-| `AUDIO` | Path to a recording of the alarm (16-bit PCM WAV). |
-| `--name NAME` | Name for the profile (defaults to the file name). |
-| `-o, --output FILE` | Output path (defaults to `<audio>.yaml`). |
+| `AUDIO` | Path to a recording of the alarm (16-bit PCM WAV). Omit when using `--record`. |
+| `-r, --record` | Capture live from the microphone instead of reading a file. |
+| `--device N` | Input device index for `--record` (see `acoustic-engine devices`). |
+| `--seconds SEC` | With `--record`, capture for a fixed time. Default: press Enter to start and stop. |
+| `--sample-rate HZ` | Capture sample rate for `--record` (default 44100). |
+| `--name NAME` | Name for the profile (defaults to the file name, or "Recorded Alarm"). |
+| `-o, --output FILE` | Output path (defaults to `<audio>.yaml`, or a slug of the name when recording). |
 
 ```bash
+# Live: set off the alarm, record it, get a profile — one step, no files to wrangle.
+acoustic-engine learn --record --name "My Dryer"           # Enter to start/stop
+acoustic-engine learn --record --seconds 15 --name "Dryer" # fixed 15s capture
+
+# From a file you already have:
 acoustic-engine learn dryer.wav --name "My Dryer"          # -> dryer.yaml
 acoustic-engine learn dryer.wav -o profiles/dryer.yaml
 ```
 
-Tips for a good result: record 10–20 s with several repeats of the pattern and
-minimal background noise. WAV only — convert other formats first
+While recording you get a live level meter, so you can see the mic is actually
+hearing the alarm. When done, the capture is kept next to the profile (e.g.
+`my_dryer.wav`) so you can re-`test` and re-`learn` it without re-recording, and
+the inferred tone/silence pattern is printed for a sanity check.
+
+Tips for a good result: capture 10–20 s with several repeats of the pattern and
+minimal background noise. From a file, WAV only — convert other formats first
 (`ffmpeg -i in.mp3 -ac 1 -ar 44100 out.wav`). Always verify the result with
 `test`. See the [Profiles guide](profiles.md) if the pattern needs a tweak.
 

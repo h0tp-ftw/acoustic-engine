@@ -6,7 +6,8 @@ invocations:
 
     acoustic-engine run --preset smoke_t3          # detect, zero config
     acoustic-engine run --config config.yaml       # detect from a config file
-    acoustic-engine learn alarm.wav --name "Dryer" # recording -> profile YAML
+    acoustic-engine learn --record --name "Dryer"  # mic -> profile YAML (live)
+    acoustic-engine learn alarm.wav --name "Dryer" # recording file -> profile YAML
     acoustic-engine test --preset co_t4 --audio recording.wav -v
     acoustic-engine profiles                        # list built-in presets
     acoustic-engine serve --port 8787               # validation API for the tuner
@@ -16,7 +17,7 @@ import argparse
 import logging
 import math
 import sys
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from . import __version__
 from .config import AudioSettings
@@ -101,23 +102,156 @@ def cmd_run(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------- #
 # learn
 # --------------------------------------------------------------------------- #
+# Timed capture default — long enough for several full alarm cycles, which the
+# cycle inference in learn.py averages over. Interactive capture (Enter to stop)
+# is bounded by _MAX_RECORD_SECONDS as a safety net.
+_DEFAULT_RECORD_SECONDS = 12.0
+_MAX_RECORD_SECONDS = 60.0
+
+
+def _slug(name: str) -> str:
+    """Filesystem-friendly stem from a profile name ('My Dryer' -> 'my_dryer')."""
+    import re
+
+    slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+    return slug or "alarm"
+
+
+def _save_wav(path: str, samples: "np.ndarray", sample_rate: int) -> None:  # noqa: F821
+    """Write int16 mono samples as a 16-bit PCM WAV (re-readable by `learn`)."""
+    import wave
+
+    with wave.open(str(path), "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        wf.writeframes(samples.astype("<i2").tobytes())
+
+
+def _describe_profile(profile: AlarmProfile) -> str:
+    """A human-readable, one-line-per-segment summary of an inferred pattern."""
+    lines = ["Inferred pattern (sanity-check it, then hand-edit the YAML if needed):"]
+    for seg in profile.segments:
+        if seg.type == "tone" and seg.frequency:
+            lines.append(
+                f"  tone     {seg.frequency.min:>5.0f}-{seg.frequency.max:<5.0f} Hz "
+                f"for {seg.duration.min:.2f}-{seg.duration.max:.2f}s"
+            )
+        else:
+            lines.append(
+                f"  silence  {'':>14}{seg.duration.min:.2f}-{seg.duration.max:.2f}s"
+            )
+    if profile.resolution:
+        lines.append(
+            f"  (high-res: min_tone={profile.resolution.min_tone_duration}s, "
+            f"dropout={profile.resolution.dropout_tolerance}s)"
+        )
+    return "\n".join(lines)
+
+
+def _record_for_learn(args: argparse.Namespace) -> "Tuple[np.ndarray, int]":  # noqa: F821
+    """Capture live mic audio for `learn`, with a level meter and clear prompts.
+
+    Returns (int16 mono samples, sample_rate). Raises AcousticEngineError with a
+    friendly message when there is no capture backend, nothing was heard, or the
+    signal was too quiet to learn from.
+    """
+    from .input.listener import audio_backend_help, list_input_devices
+
+    audio = AudioSettings()
+    if args.device is not None:
+        audio.device_index = args.device
+    if args.sample_rate:
+        audio.sample_rate = args.sample_rate
+
+    # Fail fast and clearly before prompting if there is nothing to record from.
+    if not list_input_devices() and args.device is None:
+        raise AcousticEngineError(audio_backend_help())
+
+    print(f"Recording from {_device_label(audio.device_index)} ({audio.sample_rate} Hz).")
+
+    # Interactive (press Enter to start/stop) only makes sense at a real terminal;
+    # a fixed --seconds or a piped stdin falls back to a timed capture.
+    interactive = args.seconds is None and sys.stdin.isatty()
+    if interactive:
+        print("Tip: let it run for several full alarm cycles so the pattern is clear.")
+        try:
+            input("Set off the alarm, then press Enter to start recording... ")
+        except EOFError:
+            interactive = False
+
+    if interactive:
+        print("Recording — press Enter to stop.\n")
+        samples, peak = _run_capture(audio, stop_after=_MAX_RECORD_SECONDS, wait_for_enter=True)
+    else:
+        secs = args.seconds if args.seconds is not None else _DEFAULT_RECORD_SECONDS
+        print(f"Recording for {secs:.0f}s — set off the alarm now.\n")
+        samples, peak = _run_capture(audio, stop_after=secs)
+
+    if samples is None:
+        raise AcousticEngineError(audio_backend_help())
+    if samples.size == 0:
+        raise AcousticEngineError(
+            "Captured no audio. List microphones with `acoustic-engine devices`, "
+            "then retry with --device N."
+        )
+
+    peak_db = 20 * math.log10(peak) if peak > 1e-9 else -90.0
+    if peak_db < -45:
+        raise AcousticEngineError(
+            f"I barely heard anything (peak {peak_db:.0f} dBFS). The mic may be muted "
+            "or it's the wrong device. List devices with `acoustic-engine devices`, "
+            "then retry with --device N."
+        )
+
+    print(f"Captured {samples.size / audio.sample_rate:.1f}s of audio (peak {peak_db:.0f} dBFS).\n")
+    return samples, audio.sample_rate
+
+
 def cmd_learn(args: argparse.Namespace) -> int:
-    from .learn import learn_profile_from_file
+    from pathlib import Path
+
+    from .learn import learn_profile_from_audio, learn_profile_from_file
+    from .profiles import save_profile_to_yaml
+
+    if args.record:
+        samples, sample_rate = _record_for_learn(args)
+        profile = learn_profile_from_audio(samples, sample_rate, name=args.name or "Recorded Alarm")
+    elif args.audio:
+        profile = learn_profile_from_file(args.audio, name=args.name)
+    else:
+        logger.error(
+            "Nothing to learn from. Pass a recording (e.g. `acoustic-engine learn "
+            "alarm.wav`) or capture one live with `acoustic-engine learn --record`."
+        )
+        return 1
 
     output = args.output
     if output is None:
-        # Default next to the recording: alarm.wav -> alarm.yaml
-        from pathlib import Path
-
-        output = str(Path(args.audio).with_suffix(".yaml"))
-
-    profile = learn_profile_from_file(args.audio, name=args.name)
-    from .profiles import save_profile_to_yaml
-
+        output = (
+            f"{_slug(profile.name)}.yaml"
+            if args.record
+            else str(Path(args.audio).with_suffix(".yaml"))
+        )
     save_profile_to_yaml(profile, output)
+
+    # When recording live, keep the WAV next to the profile so it can be
+    # re-tested and opened in the tuner — otherwise the recording is lost.
+    audio_ref = args.audio
+    if args.record:
+        audio_ref = str(Path(output).with_suffix(".wav"))
+        _save_wav(audio_ref, samples, sample_rate)
+
     print(f"Wrote profile '{profile.name}' ({len(profile.segments)} segments) to {output}")
+    if args.record:
+        print(f"Kept the recording at {audio_ref}")
+    print()
+    print(_describe_profile(profile))
+    print()
     print("Verify it against the recording with:")
-    print(f"  acoustic-engine test --profile {output} --audio {args.audio} -v")
+    print(f"  acoustic-engine test --profile {output} --audio {audio_ref} -v")
+    print("Then run it live with:")
+    print(f"  acoustic-engine run --profile {output}")
     return 0
 
 
@@ -196,33 +330,35 @@ def _dominant_frequency(samples, sample_rate: int) -> Optional[float]:
     return float(freqs[mask][int(np.argmax(spectrum[mask]))])
 
 
-def cmd_doctor(args: argparse.Namespace) -> int:
+def _device_label(device_index: Optional[int]) -> str:
+    """Human label for the chosen input device, falling back gracefully."""
+    from .input.listener import list_input_devices
+
+    devices = list_input_devices()
+    chosen = next(
+        (d for d in devices if device_index is not None and d["index"] == device_index),
+        next((d for d in devices if d["default"]), devices[0] if devices else None),
+    )
+    return f"[{chosen['index']}] {chosen['name']}" if chosen else "default input device"
+
+
+def _run_capture(
+    audio: AudioSettings,
+    stop_after: Optional[float] = None,
+    wait_for_enter: bool = False,
+) -> "Tuple[Optional[np.ndarray], float]":  # noqa: F821
+    """Capture mic audio with a live level meter; return (samples, peak_rms).
+
+    Stops when `stop_after` seconds elapse, the user presses Enter (when
+    `wait_for_enter`), or Ctrl-C — whichever comes first. Returns (None, 0.0) if
+    no capture backend could be opened, or an empty array if nothing was heard.
+    Shared by `doctor` (timed) and `learn --record` (interactive or timed).
+    """
     import threading
 
     import numpy as np
 
-    from .input.listener import AudioListener, audio_backend_help, list_input_devices
-
-    audio = AudioSettings()
-    if args.device is not None:
-        audio.device_index = args.device
-
-    devices = list_input_devices()
-    if not devices and args.device is None:
-        print(audio_backend_help())
-        return 1
-
-    label = "default input device"
-    chosen = next(
-        (d for d in devices if (args.device is not None and d["index"] == args.device)),
-        next((d for d in devices if d["default"]), devices[0] if devices else None),
-    )
-    if chosen:
-        label = f"[{chosen['index']}] {chosen['name']}"
-
-    seconds = args.seconds
-    print(f"Mic check on {label} ({audio.sample_rate} Hz).")
-    print(f"Listening for {seconds:.0f}s — make some noise (clap, whistle, or set off the alarm).\n")
+    from .input.listener import AudioListener
 
     chunks: List[np.ndarray] = []
     peak_rms = [0.0]
@@ -237,27 +373,66 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 
     listener = AudioListener(audio, on_chunk)
     if not listener.setup():
-        print(audio_backend_help())
-        return 1
+        return None, 0.0
 
-    timer = threading.Timer(seconds, listener.stop)
-    timer.daemon = True
-    timer.start()
+    timer = threading.Timer(stop_after, listener.stop) if stop_after is not None else None
+    if timer is not None:
+        timer.daemon = True
+        timer.start()
+
+    if wait_for_enter:
+
+        def _wait_enter() -> None:
+            try:
+                input()
+            except EOFError:
+                return
+            listener.stop()
+
+        threading.Thread(target=_wait_enter, daemon=True).start()
+
     try:
         listener.start()
     except KeyboardInterrupt:
         listener.stop()
     finally:
-        timer.cancel()
+        if timer is not None:
+            timer.cancel()
         listener.cleanup()
     print()  # finish the meter line
 
     if not chunks:
+        return np.array([], dtype=np.int16), peak_rms[0]
+    return np.concatenate(chunks).astype(np.int16), peak_rms[0]
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    import numpy as np
+
+    from .input.listener import audio_backend_help, list_input_devices
+
+    audio = AudioSettings()
+    if args.device is not None:
+        audio.device_index = args.device
+
+    if not list_input_devices() and args.device is None:
+        print(audio_backend_help())
+        return 1
+
+    seconds = args.seconds
+    print(f"Mic check on {_device_label(audio.device_index)} ({audio.sample_rate} Hz).")
+    print(f"Listening for {seconds:.0f}s — make some noise (clap, whistle, or set off the alarm).\n")
+
+    samples_i16, peak_rms = _run_capture(audio, stop_after=seconds)
+    if samples_i16 is None:
+        print(audio_backend_help())
+        return 1
+    if samples_i16.size == 0:
         print("\nCaptured no audio. Try a specific device: acoustic-engine devices")
         return 1
 
-    samples = np.concatenate(chunks).astype(np.float32)
-    peak_db = 20 * math.log10(peak_rms[0]) if peak_rms[0] > 1e-9 else -90.0
+    samples = samples_i16.astype(np.float32)
+    peak_db = 20 * math.log10(peak_rms) if peak_rms > 1e-9 else -90.0
     dominant = _dominant_frequency(samples, audio.sample_rate)
 
     print()
@@ -271,7 +446,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     print(f"   Peak level: {peak_db:.0f} dBFS")
     if dominant:
         print(f"   Loudest tone: ~{dominant:.0f} Hz")
-    print("\nNext: try a detector —  acoustic-engine run --preset smoke_t3")
+    print("\nNext: capture an alarm into a profile —  acoustic-engine learn --record")
     return 0
 
 
@@ -365,8 +540,32 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.set_defaults(func=cmd_run)
 
     # learn
-    p_learn = sub.add_parser("learn", help="Build a profile YAML from a recording.")
-    p_learn.add_argument("audio", help="Path to a recording of the alarm (WAV).")
+    p_learn = sub.add_parser(
+        "learn", help="Build a profile YAML from a recording (a WAV file or the live mic)."
+    )
+    p_learn.add_argument(
+        "audio",
+        nargs="?",
+        default=None,
+        help="Path to a recording of the alarm (WAV). Omit when using --record.",
+    )
+    p_learn.add_argument(
+        "-r",
+        "--record",
+        action="store_true",
+        help="Record from the microphone instead of reading a file.",
+    )
+    p_learn.add_argument("--device", type=int, help="Input device index (mic) for --record.")
+    p_learn.add_argument(
+        "--sample-rate", type=int, help="Capture sample rate in Hz for --record."
+    )
+    p_learn.add_argument(
+        "--seconds",
+        type=float,
+        default=None,
+        help="With --record, capture for a fixed number of seconds "
+        "(default: press Enter to start and stop).",
+    )
     p_learn.add_argument("--name", default=None, help="Name for the learned profile.")
     p_learn.add_argument("-o", "--output", default=None, help="Output YAML path.")
     p_learn.set_defaults(func=cmd_learn)
