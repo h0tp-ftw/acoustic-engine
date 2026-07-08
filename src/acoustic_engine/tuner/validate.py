@@ -21,9 +21,9 @@ from typing import List
 
 import numpy as np
 import yaml
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -310,17 +310,38 @@ async def delete_profile(name: str):
     return {"deleted": path.stem}
 
 
-# --- Serve the built React tuner at / (when bundled with the package) -------- #
+# --- Serve the built React tuner (when bundled with the package) ------------- #
+
+def _static_dir() -> Path:
+    default_static = Path(__file__).resolve().parent / "static"
+    return Path(os.getenv("ACOUSTIC_TUNER_STATIC", str(default_static)))
+
+
+@app.get("/", response_class=HTMLResponse)
+async def tuner_index(request: Request):
+    """Serve the SPA shell, injecting <base> from HA's X-Ingress-Path header.
+
+    The built HTML references its assets relatively (Vite base './'), which only
+    resolves correctly with the right document base. Behind HA Ingress the page
+    lives under /api/hassio_ingress/<token>/, so inject that as <base>; plain
+    localhost access falls back to '/'. This fixes both the asset loads and the
+    same-origin /validate call (document.baseURI follows <base>).
+    """
+    index = _static_dir() / "index.html"
+    if not index.is_file():
+        raise HTTPException(status_code=404, detail="Tuner UI is not bundled")
+    ingress = request.headers.get("X-Ingress-Path", "").rstrip("/")
+    base = f"{ingress}/" if ingress else "/"
+    html = index.read_text().replace("<head>", f'<head>\n    <base href="{base}">', 1)
+    return HTMLResponse(html)
+
 
 def _mount_tuner_ui() -> None:
-    """Mount the built tuner UI at / if present.
-
-    Mounted last so the API routes above take precedence. Built into static/ by
-    scripts/build_tuner.sh; absent in an unbuilt source checkout (then this
-    server is API-only). Override the location with ACOUSTIC_TUNER_STATIC.
+    """Mount the tuner's static assets. `tuner_index` above serves the shell (with
+    <base> injected); this serves the hashed /assets/* it references. Mounted last
+    so the API + index routes win. API-only if the UI hasn't been built.
     """
-    default_static = Path(__file__).resolve().parent / "static"
-    static_dir = Path(os.getenv("ACOUSTIC_TUNER_STATIC", str(default_static)))
+    static_dir = _static_dir()
     if (static_dir / "index.html").is_file():
         app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="tuner")
 

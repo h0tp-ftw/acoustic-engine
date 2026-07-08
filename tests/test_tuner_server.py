@@ -61,3 +61,12 @@ def test_get_missing_profile_404(tmp_path, monkeypatch):
 def test_health(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     assert client.get("/health").json() == {"status": "ok"}
+
+
+def test_index_injects_ingress_base(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    resp = client.get("/", headers={"X-Ingress-Path": "/api/hassio_ingress/TOKEN"})
+    if resp.status_code == 200:  # UI is bundled in this checkout
+        assert '<base href="/api/hassio_ingress/TOKEN/">' in resp.text
+    else:
+        assert resp.status_code == 404  # UI not built -> API-only
