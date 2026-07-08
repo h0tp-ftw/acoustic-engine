@@ -60,7 +60,11 @@ export default function AcousticTuner() {
   // --- Engine Validation State ---
   const [engineResult, setEngineResult] = useState(null);
   const [engineValidating, setEngineValidating] = useState(false);
-  const [engineApiUrl, setEngineApiUrl] = useState('http://localhost:8787');
+  // Empty = same origin (works when the engine's `serve` hosts this UI, incl.
+  // behind HA Ingress). `npm run dev` still points at the standalone API on :8787.
+  const [engineApiUrl, setEngineApiUrl] = useState(
+    import.meta.env.DEV ? 'http://localhost:8787' : ''
+  );
   const [showEngineLayer, setShowEngineLayer] = useState(true);
 
   // --- Auto Cycle Detection ---
@@ -876,7 +880,12 @@ export default function AcousticTuner() {
       formData.append('audio', wavBlob, 'audio.wav');
       formData.append('profile_yaml', yamlStr);
 
-      const resp = await fetch(`${engineApiUrl}/validate`, { method: 'POST', body: formData });
+      // Empty engineApiUrl -> same origin, resolved relative to the current
+      // document so it works under HA Ingress path prefixes.
+      const apiUrl = engineApiUrl
+        ? `${engineApiUrl.replace(/\/+$/, '')}/validate`
+        : new URL('validate', document.baseURI).href;
+      const resp = await fetch(apiUrl, { method: 'POST', body: formData });
       const data = await resp.json();
 
       if (data.error) throw new Error(data.error);
@@ -1636,6 +1645,7 @@ export default function AcousticTuner() {
                   type="text"
                   value={engineApiUrl}
                   onChange={(e) => setEngineApiUrl(e.target.value)}
+                  placeholder="same origin (this server)"
                   className="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-0.5 text-slate-400 font-mono"
                 />
               </div>
