@@ -133,7 +133,11 @@ export default function AcousticTuner() {
     setThreshold(snap.threshold);
     setMinDuration(snap.minDuration);
     showToast(`Undo: ${snap.label}`);
-  }, [runAnalysis, showToast]);
+    // runAnalysis is a stable ([]-deps) callback declared below; keep it OUT of
+    // this deps array. The array is evaluated during render, so listing a
+    // not-yet-initialized const here throws "Cannot access before initialization"
+    // and blanks the whole app on mount. The body call resolves at call time.
+  }, [showToast]);
 
   const loadAudioFile = useCallback(async (file) => {
     await ensureAudioContext();
@@ -149,7 +153,9 @@ export default function AcousticTuner() {
     } catch {
       showToast('Error decoding audio file');
     }
-  }, [ensureAudioContext, runAnalysis, showToast]);
+    // runAnalysis omitted from deps for the same reason as in `undo` above
+    // (stable callback declared later; listing it here would TDZ at mount).
+  }, [ensureAudioContext, showToast]);
 
   // --- Init Audio Context ---
   useEffect(() => {
