@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Upload, Play, Square, Pause, Settings2, Activity, Download, Copy, RefreshCw, Scissors, Wand2, Plus, Trash2, Dices, Radio, Info, FileUp, FileText, ChevronDown, ChevronRight, ShieldCheck, Loader2, Undo2 } from 'lucide-react';
+import { Upload, Play, Square, Pause, Settings2, Activity, Download, Copy, RefreshCw, Scissors, Wand2, Plus, Trash2, Dices, Radio, Mic, Info, FileUp, FileText, ChevronDown, ChevronRight, ShieldCheck, Loader2, Undo2 } from 'lucide-react';
 import jsyaml from 'js-yaml';
 import {
   analyzeAudio,
@@ -50,6 +50,8 @@ export default function AcousticTuner() {
   const [isSynthPlaying, setIsSynthPlaying] = useState(false);
   const [hoverInfo, setHoverInfo] = useState(null);
   const [fileName, setFileName] = useState(null);
+  const [recording, setRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(12);
   const [toast, setToast] = useState(null);
 
   // --- YAML Import State ---
@@ -156,6 +158,39 @@ export default function AcousticTuner() {
     // runAnalysis omitted from deps for the same reason as in `undo` above
     // (stable callback declared later; listing it here would TDZ at mount).
   }, [ensureAudioContext, showToast]);
+
+  // Record from the HOST mic (the machine the engine runs on), not the browser.
+  // Hits the engine server's /record, then loads the WAV exactly like a file.
+  const recordFromMic = useCallback(async () => {
+    if (recording) return;
+    const secs = Math.max(1, Math.min(Number(recordSeconds) || 12, 30));
+    setRecording(true);
+    showToast(`Recording ${secs}s from the host mic…`);
+    try {
+      const url = engineApiUrl
+        ? `${engineApiUrl.replace(/\/+$/, '')}/record?seconds=${secs}`
+        : new URL(`record?seconds=${secs}`, document.baseURI).href;
+      const resp = await fetch(url, { method: 'POST' });
+      if (!resp.ok) {
+        let msg = `Record failed (${resp.status})`;
+        try { const j = await resp.json(); if (j.detail) msg = j.detail; } catch { /* not json */ }
+        throw new Error(msg);
+      }
+      const blob = await resp.blob();
+      await ensureAudioContext();
+      const buffer = await audioContextRef.current.decodeAudioData(await blob.arrayBuffer());
+      setAudioBuffer(buffer);
+      setFileName(`mic recording (${secs}s)`);
+      setProfileSegments([]);
+      runAnalysis(buffer);
+      showToast(`Recorded ${buffer.duration.toFixed(1)}s — analyzing`);
+    } catch (e) {
+      showToast(String(e?.message || e));
+    } finally {
+      setRecording(false);
+    }
+    // runAnalysis is called in the body (resolves at call time), not a dep — see undo.
+  }, [recording, recordSeconds, engineApiUrl, ensureAudioContext, showToast]);
 
   // --- Init Audio Context ---
   useEffect(() => {
@@ -1195,6 +1230,20 @@ export default function AcousticTuner() {
               <Upload size={16} /> Load Audio
               <input type="file" accept="audio/*" onChange={handleFileUpload} className="hidden" />
             </label>
+            <button
+              onClick={recordFromMic} disabled={recording}
+              title="Record from the machine running the detector (the Pi's mic) — not this browser"
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 font-medium transition text-sm border ${recording ? 'bg-red-600/20 text-red-400 border-red-500/50 animate-pulse' : 'bg-slate-700 hover:bg-slate-600 text-white border-slate-600'} disabled:opacity-60`}
+            >
+              {recording ? <Loader2 size={16} className="animate-spin" /> : <Mic size={16} />}
+              {recording ? `Recording ${recordSeconds}s…` : 'Record mic'}
+            </button>
+            <input
+              type="number" min="1" max="30" value={recordSeconds}
+              onChange={(e) => setRecordSeconds(e.target.value)} disabled={recording}
+              title="Record duration (seconds)"
+              className="w-16 bg-slate-900 border border-slate-700 rounded-lg px-2 text-sm text-slate-300"
+            />
             <button onClick={() => setShowYamlImport(!showYamlImport)} className="bg-slate-700 hover:bg-slate-600 transition px-4 py-2 rounded-lg flex items-center gap-2 font-medium border border-slate-600 text-sm text-amber-400">
               <FileUp size={16} /> Import YAML
             </button>

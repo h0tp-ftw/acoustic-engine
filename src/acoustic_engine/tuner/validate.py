@@ -17,13 +17,13 @@ import os
 import re
 import wave
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 import yaml
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -246,6 +246,73 @@ async def validate(
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+# --- Record from the host mic (so profiles come from the detecting machine) --- #
+
+def _record_int16(seconds: float, sample_rate: int, device: Optional[int]) -> np.ndarray:
+    """Capture ``seconds`` of mono int16 mic audio via the engine's AudioListener.
+
+    Same capture path as ``learn --record`` (minus the terminal meter), so the
+    tuner records from the machine the engine runs on — not the browser.
+    """
+    import threading
+
+    from acoustic_engine.config import AudioSettings
+    from acoustic_engine.input.listener import AudioListener
+
+    audio = AudioSettings(sample_rate=sample_rate, device_index=device, channels=1)
+    chunks: List[np.ndarray] = []
+
+    def on_chunk(chunk: np.ndarray) -> None:
+        if len(chunk):
+            chunks.append(chunk)
+
+    listener = AudioListener(audio, on_chunk)
+    if not listener.setup():
+        raise RuntimeError("no audio backend / microphone available")
+
+    timer = threading.Timer(seconds, listener.stop)
+    timer.daemon = True
+    timer.start()
+    try:
+        listener.start()  # blocks until stop()
+    finally:
+        timer.cancel()
+        listener.cleanup()
+
+    if not chunks:
+        return np.array([], dtype=np.int16)
+    return np.concatenate(chunks).astype(np.int16)
+
+
+def _int16_to_wav(samples: np.ndarray, sample_rate: int) -> bytes:
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        wf.writeframes(samples.tobytes())
+    return buf.getvalue()
+
+
+@app.post("/record")
+def record(seconds: float = 8.0, sample_rate: int = 44100, device: Optional[int] = None):
+    """Record from the host mic and return a 16-bit mono WAV.
+
+    A plain ``def`` (not async) so FastAPI runs the blocking capture in a thread.
+    """
+    seconds = max(1.0, min(float(seconds), 30.0))
+    try:
+        samples = _record_int16(seconds, int(sample_rate), device)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Recording failed: {e}") from None
+    if samples.size == 0:
+        raise HTTPException(
+            status_code=503,
+            detail="No audio captured — is a microphone connected and unmuted?",
+        )
+    return Response(content=_int16_to_wav(samples, int(sample_rate)), media_type="audio/wav")
 
 
 # --- Profile storage: let the tuner list / open / save / delete profiles ----- #
