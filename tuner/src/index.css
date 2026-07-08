@@ -1,1 +1,405 @@
 @import "tailwindcss";
+
+/* ============================================================
+   Pressed Flower, Guided — light & airy pastel art direction
+   Base = Pressed Flower Stationery (A), one-accent-per-step (C),
+   one-soft-primary-per-card restraint (B).
+   Tailwind v4: tokens in @theme, component classes in @layer.
+   ============================================================ */
+
+@theme {
+  /* Surfaces */
+  --color-paper: #FBF7FF;
+  --color-paper-2: #F5EFFB;
+  --color-card: #FFFFFF;
+  --color-card-soft: #FEFBFF;
+  --color-canvas: #FBF7FF;
+
+  /* Ink */
+  --color-ink: #4A3F5C;
+  --color-ink-soft: #6B5F7D;
+  --color-ink-faint: #736788;
+
+  /* Lines */
+  --color-line: #EBE3F5;
+  --color-line-strong: #DED2EE;
+
+  /* Lilac — step 1 + global primary */
+  --color-lilac: #C9B6F0;
+  --color-lilac-deep: #6E57A6;
+  --color-lilac-tint: #F1ECFB;
+
+  /* Mint — step 2 + matched */
+  --color-mint: #B7E4C7;
+  --color-mint-deep: #3B7E59;
+  --color-mint-tint: #E9F7EF;
+
+  /* Blush — step 3 + gentle attention */
+  --color-blush: #F7B7C9;
+  --color-blush-deep: #A9526F;
+  --color-blush-tint: #FDEDF2;
+
+  /* Peach — step 4 + spectrum/pitch */
+  --color-peach: #FBD3A5;
+  --color-peach-deep: #A5641F;
+  --color-peach-tint: #FDF0E1;
+
+  /* Sky — engine layer + volume */
+  --color-sky: #A9C8EC;
+  --color-sky-deep: #47699A;
+  --color-sky-tint: #E7EFFA;
+
+  /* Type */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  /* Radius — rounded stationery corners */
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 1.75rem;
+
+  /* Soft "paper lifting off a desk" shadows */
+  --shadow-paper: 0 1px 2px rgba(74, 63, 92, 0.04), 0 8px 24px -12px rgba(139, 114, 196, 0.22);
+  --shadow-paper-lg: 0 2px 4px rgba(74, 63, 92, 0.05), 0 18px 40px -18px rgba(139, 114, 196, 0.28);
+  --shadow-soft: 0 1px 2px rgba(74, 63, 92, 0.04), 0 4px 12px -6px rgba(139, 114, 196, 0.18);
+}
+
+/* ------------------------------------------------------------
+   Base
+   ------------------------------------------------------------ */
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    background-image:
+      radial-gradient(1100px 620px at 82% -8%, rgba(201, 182, 240, 0.18), transparent 60%),
+      radial-gradient(920px 560px at 6% 108%, rgba(247, 183, 201, 0.14), transparent 60%);
+    background-attachment: fixed;
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    letter-spacing: -0.005em;
+    line-height: 1.5;
+  }
+
+  h1, h2, h3 { letter-spacing: -0.02em; color: var(--color-ink); }
+  h1 { font-size: 1.6rem; line-height: 1.15; font-weight: 700; }
+  h2 { font-size: 1.2rem; line-height: 1.2; font-weight: 650; }
+
+  ::selection { background: var(--color-lilac-tint); color: var(--color-lilac-deep); }
+
+  *:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--color-lilac-tint), 0 0 0 4px var(--color-lilac);
+    border-radius: 0.75rem;
+  }
+
+  /* Gentle scrollbars */
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb {
+    background: var(--color-line-strong);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-thumb:hover { background: var(--color-lilac); background-clip: content-box; }
+
+  /* ---- Range sliders: white enamel thumb ringed in an accent ---- */
+  /* Default accent = lilac; per-step retint via --range-accent on the input. */
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 9999px;
+    background: var(--color-line-strong);
+    cursor: pointer;
+    outline: none;
+    --range-accent: var(--color-lilac);
+    --range-accent-strong: var(--color-lilac-deep);
+  }
+  input[type="range"]:disabled { opacity: 0.45; cursor: not-allowed; }
+  input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 9999px; }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    margin-top: -6px;
+    border-radius: 9999px;
+    background: #ffffff;
+    border: 4px solid var(--range-accent);
+    box-shadow: 0 2px 6px -1px rgba(139, 114, 196, 0.45);
+    transition: transform 0.12s ease, border-color 0.12s ease;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.12); border-color: var(--range-accent-strong); }
+  input[type="range"]::-moz-range-track { height: 6px; border-radius: 9999px; background: var(--color-line-strong); }
+  input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 9999px;
+    background: #ffffff;
+    border: 4px solid var(--range-accent);
+    box-shadow: 0 2px 6px -1px rgba(139, 114, 196, 0.45);
+    transition: transform 0.12s ease, border-color 0.12s ease;
+  }
+  input[type="range"]::-moz-range-thumb:hover { transform: scale(1.12); border-color: var(--range-accent-strong); }
+
+  /* Accent modifiers: add to a slider (or a parent) to retint its thumb */
+  .range-lilac { --range-accent: var(--color-lilac); --range-accent-strong: var(--color-lilac-deep); }
+  .range-mint  { --range-accent: var(--color-mint-deep); --range-accent-strong: var(--color-mint-deep); }
+  .range-blush { --range-accent: var(--color-blush); --range-accent-strong: var(--color-blush-deep); }
+  .range-peach { --range-accent: var(--color-peach-deep); --range-accent-strong: var(--color-peach-deep); }
+  .range-sky   { --range-accent: var(--color-sky); --range-accent-strong: var(--color-sky-deep); }
+
+  /* Pastel checkboxes */
+  input[type="checkbox"] { accent-color: var(--color-lilac-deep); border-radius: 6px; width: 1rem; height: 1rem; }
+
+  input[type="number"] { font-variant-numeric: tabular-nums; }
+
+  /* native <details> disclosure: remove default marker */
+  details > summary { list-style: none; cursor: pointer; }
+  details > summary::-webkit-details-marker { display: none; }
+}
+
+/* ------------------------------------------------------------
+   Components
+   ------------------------------------------------------------ */
+@layer components {
+
+  /* Layout shell */
+  .app-shell { @apply min-h-screen p-5 md:p-8 font-sans overflow-x-hidden; }
+  .app-container { @apply mx-auto w-full max-w-3xl space-y-6; }
+
+  /* Cards — pressed-paper surfaces */
+  .card {
+    @apply bg-card rounded-3xl border border-line p-6 md:p-7;
+    box-shadow: var(--shadow-paper);
+  }
+  /* Per-step accent spine — a soft coloured left edge so each step reads at a glance */
+  .card-step-1 { border-left: 4px solid var(--color-lilac); }
+  .card-step-2 { border-left: 4px solid var(--color-mint); }
+  .card-step-3 { border-left: 4px solid var(--color-blush); }
+  .card-step-4 { border-left: 4px solid var(--color-peach); }
+  /* Recessed inner well */
+  .well {
+    @apply bg-paper-2 rounded-2xl border border-line p-4;
+  }
+  /* Nested sub-card (one profile segment row) */
+  .subcard {
+    @apply bg-card-soft rounded-2xl border border-line p-4;
+    box-shadow: var(--shadow-soft);
+  }
+
+  /* Step badge — numbered circle, retinted per step */
+  .step-number {
+    @apply inline-flex items-center justify-center rounded-full text-sm font-bold shrink-0;
+    width: 2.25rem;
+    height: 2.25rem;
+    color: var(--color-lilac-deep);
+    background: var(--color-lilac-tint);
+    border: 1px solid var(--color-lilac);
+  }
+  .step-number-mint  { color: var(--color-mint-deep);  background: var(--color-mint-tint);  border-color: var(--color-mint); }
+  .step-number-blush { color: var(--color-blush-deep); background: var(--color-blush-tint); border-color: var(--color-blush); }
+  .step-number-peach { color: var(--color-peach-deep); background: var(--color-peach-tint); border-color: var(--color-peach); }
+
+  .section-heading { @apply flex items-center gap-3 mb-5; }
+  .section-heading h2 { @apply text-ink; }
+  .section-sub { @apply text-sm text-ink-soft mt-0.5; }
+
+  /* Soft dotted connector between step cards */
+  .step-connector {
+    @apply mx-auto h-6 w-px;
+    background-image: linear-gradient(var(--color-line-strong) 55%, transparent 0);
+    background-size: 1px 8px;
+    background-repeat: repeat-y;
+  }
+
+  /* Buttons -------------------------------------------------- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+    transition-property: transform, background-color, color, box-shadow, filter;
+  }
+  .btn:active:not(:disabled) { transform: translateY(1px); }
+
+  /* Primary = lilac fill, dark plum ink (step-1 hero + global). Dark ink on the
+     pastel fill reads far better than white and is more stationery-charm. */
+  .btn-primary { background: var(--color-lilac); color: var(--color-ink); box-shadow: var(--shadow-soft); }
+  .btn-primary:hover:not(:disabled) { filter: brightness(0.96); }
+
+  /* Per-step primary fills for the ONE hero button per card — dark ink label */
+  .btn-mint  { background: var(--color-mint);  color: var(--color-ink);  box-shadow: var(--shadow-soft); }
+  .btn-mint:hover:not(:disabled)  { filter: brightness(0.97); }
+  .btn-blush { background: var(--color-blush); color: var(--color-ink); box-shadow: var(--shadow-soft); }
+  .btn-blush:hover:not(:disabled) { filter: brightness(0.97); }
+  .btn-peach { background: var(--color-peach); color: var(--color-ink); box-shadow: var(--shadow-soft); }
+  .btn-peach:hover:not(:disabled) { filter: brightness(0.97); }
+  .btn-sky   { background: var(--color-sky);   color: var(--color-ink);   box-shadow: var(--shadow-soft); }
+  .btn-sky:hover:not(:disabled)   { filter: brightness(0.97); }
+
+  /* Big full-width call-to-action (Extract / Validate / Test / Download) */
+  .btn-cta {
+    @apply w-full rounded-2xl px-5 py-4 text-base font-bold transition inline-flex items-center justify-center gap-3;
+    @apply disabled:cursor-not-allowed;
+    box-shadow: var(--shadow-soft);
+  }
+  .btn-cta-mint  { background: var(--color-mint);  color: var(--color-ink); }
+  .btn-cta-lilac { background: var(--color-lilac-tint); color: var(--color-ink); border: 1px solid var(--color-lilac); }
+  .btn-cta-blush { background: var(--color-blush); color: var(--color-ink); }
+  .btn-cta-sky   { background: var(--color-sky-tint); color: var(--color-ink); border: 1px solid var(--color-sky); }
+  .btn-cta-peach { background: var(--color-peach-tint); color: var(--color-ink); border: 1px solid var(--color-peach); }
+  .btn-cta:hover:not(:disabled) { filter: brightness(0.97); }
+  .btn-cta:disabled { background: var(--color-paper-2); color: var(--color-ink-faint); box-shadow: none; }
+
+  /* Soft = paper-tinted neutral button (Choose a file, More, Copy, Reset) */
+  .btn-soft {
+    background: var(--color-card);
+    color: var(--color-ink-soft);
+    border: 1px solid var(--color-line-strong);
+    box-shadow: var(--shadow-soft);
+  }
+  .btn-soft:hover:not(:disabled) { background: var(--color-paper-2); color: var(--color-ink); }
+
+  /* Rose/record button (idle blush wash; add animate-pulse while recording) */
+  .btn-rose {
+    background: var(--color-blush-tint);
+    color: var(--color-ink);
+    border: 1px solid var(--color-blush);
+  }
+  .btn-rose:hover:not(:disabled) { background: var(--color-blush); color: var(--color-ink); }
+
+  /* Ghost = lowest-emphasis text button (Undo, Close, More items) */
+  .btn-ghost { background: transparent; color: var(--color-ink-faint); }
+  .btn-ghost:hover:not(:disabled) { color: var(--color-ink); background: var(--color-paper-2); }
+
+  /* Icon-only round button */
+  .btn-icon {
+    @apply inline-flex items-center justify-center rounded-full transition;
+    width: 2.5rem; height: 2.5rem;
+    background: var(--color-card);
+    color: var(--color-ink-soft);
+    border: 1px solid var(--color-line-strong);
+    box-shadow: var(--shadow-soft);
+  }
+  .btn-icon:hover:not(:disabled) { background: var(--color-paper-2); color: var(--color-ink); }
+  .btn-icon:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* Segmented toggle (Sound over time | Frequencies now; layer group) */
+  .seg {
+    @apply inline-flex items-center gap-1 rounded-full p-1;
+    background: var(--color-paper-2);
+    border: 1px solid var(--color-line);
+  }
+  .seg-item {
+    @apply inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition;
+    color: var(--color-ink-faint);
+  }
+  .seg-item:hover { color: var(--color-ink-soft); }
+  .seg-item[data-active="true"] {
+    background: var(--color-card);
+    color: var(--color-lilac-deep);
+    box-shadow: var(--shadow-soft);
+  }
+
+  /* Inputs --------------------------------------------------- */
+  .field {
+    @apply w-full rounded-xl px-3 py-2 text-sm transition;
+    background: var(--color-card-soft);
+    color: var(--color-ink);
+    border: 1px solid var(--color-line-strong);
+  }
+  .field::placeholder { color: var(--color-ink-faint); }
+  .field:focus {
+    outline: none;
+    border-color: var(--color-lilac);
+    box-shadow: 0 0 0 3px var(--color-lilac-tint);
+  }
+  .field-sm { @apply rounded-lg px-2 py-1 text-xs; }
+  .field-mono { font-family: var(--font-mono); }
+
+  .field-label { @apply block text-xs font-medium mb-1.5; color: var(--color-ink-soft); }
+
+  /* Hints & info */
+  .hint { @apply text-xs leading-relaxed; color: var(--color-ink-faint); }
+  .hint-card {
+    @apply flex items-start gap-2 rounded-xl p-3 text-xs leading-relaxed;
+    background: var(--color-lilac-tint);
+    color: var(--color-ink-soft);
+    border: 1px solid var(--color-line);
+  }
+
+  /* Pills & badges ------------------------------------------- */
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium;
+    background: var(--color-paper-2);
+    color: var(--color-ink-soft);
+    border: 1px solid var(--color-line);
+  }
+  .pill-lilac { background: var(--color-lilac-tint); color: var(--color-lilac-deep); border-color: var(--color-lilac); }
+  .pill-mint  { background: var(--color-mint-tint);  color: var(--color-mint-deep);  border-color: var(--color-mint); }
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold;
+  }
+  .badge-matched { background: var(--color-mint-tint); color: var(--color-mint-deep); }
+  .badge-unmatched { background: var(--color-blush-tint); color: var(--color-blush-deep); }
+  .badge-tone { background: var(--color-mint-tint); color: var(--color-mint-deep); }
+  .badge-silence { background: var(--color-paper-2); color: var(--color-ink-faint); }
+  .badge-engine { background: var(--color-sky-tint); color: var(--color-sky-deep); }
+
+  /* Match dots (segment table) */
+  .dot { @apply inline-block h-2 w-2 rounded-full; }
+  .dot-matched { background: var(--color-mint-deep); }
+  .dot-unmatched { background: var(--color-blush-deep); }
+
+  /* Disclosure (native <details>) ---------------------------- */
+  .disclosure { @apply rounded-2xl; background: var(--color-paper-2); border: 1px solid var(--color-line); }
+  .disclosure-summary {
+    @apply flex items-center justify-between gap-2 px-4 py-3 text-sm font-semibold select-none;
+    color: var(--color-ink-soft);
+  }
+  .disclosure-summary:hover { color: var(--color-ink); }
+  .disclosure-body { @apply px-4 pb-4 pt-1; }
+
+  /* Divider */
+  .divider { @apply border-t border-line; }
+
+  /* Code / YAML "receipt" well */
+  .code-well { @apply rounded-2xl p-4 overflow-auto; background: var(--color-paper-2); border: 1px solid var(--color-line); }
+  .code-well pre { color: var(--color-lilac-deep); font-family: var(--font-mono); }
+
+  /* Data table (detected segments + engine tone events) */
+  .data-table { @apply w-full text-sm; border-collapse: separate; border-spacing: 0; }
+  .data-table th { @apply px-3 py-1.5 text-left text-xs font-medium; color: var(--color-ink-faint); }
+  .data-table td { @apply px-3 py-1.5; color: var(--color-ink); border-top: 1px solid var(--color-line); }
+  .data-table tbody tr:hover td { background: var(--color-card-soft); }
+
+  /* Canvas frame — LIGHT card background + soft border */
+  .canvas-frame {
+    @apply relative w-full aspect-[21/9] rounded-2xl overflow-hidden;
+    background: var(--color-canvas);
+    border: 1px solid var(--color-line-strong);
+  }
+
+  /* Toast */
+  .toast {
+    @apply rounded-2xl px-5 py-3 text-sm font-medium;
+    background: var(--color-card);
+    color: var(--color-ink);
+    border: 1px solid var(--color-line-strong);
+    box-shadow: var(--shadow-paper-lg);
+  }
+}
+
+/* Gentle fade for toast (kept as animate-[fadeIn_...]) */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
