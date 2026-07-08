@@ -73,6 +73,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 "acoustic_engine" = ["*.yaml"]
 "acoustic_engine.presets" = ["*.yaml"]
+"acoustic_engine.tuner" = ["static/*", "static/assets/*"]
 
 [tool.black]
 line-length = 100

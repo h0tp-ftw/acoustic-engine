@@ -13,22 +13,29 @@ Or import and mount on an existing FastAPI app:
 
 import argparse
 import io
+import os
+import re
 import wave
+from pathlib import Path
 from typing import List
 
 import numpy as np
 import yaml
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from acoustic_engine.analysis.generator import EventGenerator
 from acoustic_engine.analysis.windowed_matcher import WindowedMatcher
 from acoustic_engine.config import DEFAULT_DROPOUT_TOLERANCE, DEFAULT_MIN_TONE_DURATION
+from acoustic_engine.errors import ProfileError
 from acoustic_engine.events import ToneEvent
 from acoustic_engine.models import AlarmProfile, Range, ResolutionConfig, Segment
 from acoustic_engine.processing.dsp import SpectralMonitor
 from acoustic_engine.processing.filter import FrequencyFilter
+from acoustic_engine.profiles import validate_profile
 
 app = FastAPI(title="Acoustic Engine Validator")
 
@@ -241,24 +248,117 @@ async def health():
     return {"status": "ok"}
 
 
+# --- Profile storage: let the tuner list / open / save / delete profiles ----- #
+# The directory defaults to ./profiles and is overridden with --profiles-dir or
+# ACOUSTIC_PROFILES_DIR (the add-on points it at /config/.../profiles).
+
+class ProfileIn(BaseModel):
+    name: str
+    yaml: str
+
+
+_UNSAFE = re.compile(r"[^A-Za-z0-9_.-]+")
+
+
+def _profiles_dir() -> Path:
+    d = Path(os.getenv("ACOUSTIC_PROFILES_DIR", "profiles"))
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _safe_stem(name: str) -> str:
+    """A filesystem-safe file stem; blocks path traversal and empty names."""
+    stem = _UNSAFE.sub("_", (name or "").strip()).strip("._")
+    return (stem or "profile")[:100]
+
+
+@app.get("/profiles")
+async def list_profiles():
+    return {"profiles": sorted(p.stem for p in _profiles_dir().glob("*.yaml"))}
+
+
+@app.get("/profiles/{name}")
+async def get_profile(name: str):
+    path = _profiles_dir() / f"{_safe_stem(name)}.yaml"
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail=f"No profile named '{name}'")
+    return {"name": path.stem, "yaml": path.read_text()}
+
+
+@app.post("/profiles")
+async def save_profile(body: ProfileIn):
+    # Validate before writing so the UI gets a clear reason on bad input.
+    try:
+        profile = parse_profile_from_yaml(body.yaml)
+        validate_profile(profile)
+    except ProfileError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid profile YAML: {e}") from None
+    stem = _safe_stem(body.name or profile.name)
+    path = _profiles_dir() / f"{stem}.yaml"
+    path.write_text(body.yaml)
+    return {"saved": stem, "path": str(path)}
+
+
+@app.delete("/profiles/{name}")
+async def delete_profile(name: str):
+    path = _profiles_dir() / f"{_safe_stem(name)}.yaml"
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail=f"No profile named '{name}'")
+    path.unlink()
+    return {"deleted": path.stem}
+
+
+# --- Serve the built React tuner at / (when bundled with the package) -------- #
+
+def _mount_tuner_ui() -> None:
+    """Mount the built tuner UI at / if present.
+
+    Mounted last so the API routes above take precedence. Built into static/ by
+    scripts/build_tuner.sh; absent in an unbuilt source checkout (then this
+    server is API-only). Override the location with ACOUSTIC_TUNER_STATIC.
+    """
+    default_static = Path(__file__).resolve().parent / "static"
+    static_dir = Path(os.getenv("ACOUSTIC_TUNER_STATIC", str(default_static)))
+    if (static_dir / "index.html").is_file():
+        app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="tuner")
+
+
+_mount_tuner_ui()
+
+
 def main():
     # Parse args first so `--help` works even if the server deps are missing.
-    parser = argparse.ArgumentParser(description="Acoustic Engine Validation API")
+    parser = argparse.ArgumentParser(
+        description="Acoustic Engine tuner server (UI + validation API)"
+    )
     parser.add_argument("-p", "--port", type=int, default=8787)
     parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument(
+        "--profiles-dir",
+        default=None,
+        help="Directory to list/save profile YAMLs (or set ACOUSTIC_PROFILES_DIR).",
+    )
     args = parser.parse_args()
+
+    if args.profiles_dir:
+        os.environ["ACOUSTIC_PROFILES_DIR"] = args.profiles_dir
 
     try:
         import uvicorn
     except ImportError:
         raise SystemExit(
-            "The validation server needs the 'tuner' extra. Install it with:\n"
+            "The tuner server needs the 'tuner' extra. Install it with:\n"
             "  pip install 'acoustic-engine[tuner]'"
         ) from None
 
-    print(f"Validation API starting on http://{args.host}:{args.port}")
-    print("  POST /validate  — upload audio + profile YAML")
-    print("  GET  /health    — health check")
+    has_ui = any(getattr(r, "name", None) == "tuner" for r in app.routes)
+    where = " (with UI)" if has_ui else " (API only — build the UI to serve it)"
+    print(f"Acoustic tuner server on http://{args.host}:{args.port}{where}")
+    print("  GET  /            — tuner UI" + ("" if has_ui else " (not bundled)"))
+    print("  POST /validate    — audio + profile YAML -> engine results")
+    print("  GET  /profiles    — list; GET/POST/DELETE /profiles[/name] to manage")
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
 
